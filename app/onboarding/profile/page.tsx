@@ -3,9 +3,11 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Camera } from "lucide-react"
+import { useCurrentAccount } from "@mysten/dapp-kit"
 import { cn } from "@/lib/utils"
 import { AppHeader } from "@/components/app-header"
 import { Button } from "@/components/ui/button"
+import { saveProfile } from "@/lib/users"
 
 // ── Constants ─────────────────────────────────────────────────
 const GENRES = [
@@ -56,8 +58,11 @@ const DEFAULT_FORM: ProfileForm = {
 // ── Component ─────────────────────────────────────────────────
 export default function ProfilePage() {
   const router = useRouter()
+  const currentAccount = useCurrentAccount()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<ProfileForm>(DEFAULT_FORM)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   function toggleGenre(genre: string) {
     setForm((f) => ({
@@ -78,12 +83,38 @@ export default function ProfilePage() {
     return false
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (step < STEP_COUNT) {
       setStep((s) => s + 1)
-    } else {
-      // TODO: save profile via API
+      return
+    }
+
+    // 마지막 단계: 지갑 주소를 PK로 프로필을 Supabase에 저장 (= 회원가입 완료)
+    const address = currentAccount?.address
+    if (!address) {
+      setSaveError("Wallet not connected. Please reconnect.")
+      router.replace("/onboarding/connect")
+      return
+    }
+
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await saveProfile(address, {
+        display_name: form.displayName,
+        username: form.nickname,
+        genres: form.genres,
+        language: form.language,
+        age_group: form.ageGroup,
+        visibility: form.visibility,
+        agree_privacy: form.agreePrivacy,
+        agree_marketing: form.agreeMarketing,
+      })
       router.push("/onboarding/character")
+    } catch {
+      setSaveError("Failed to save profile. Please try again.")
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -130,18 +161,27 @@ export default function ProfilePage() {
 
       {/* Bottom CTA */}
       <div className="fixed right-0 bottom-0 left-0 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-10 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
+        {saveError && (
+          <p className="mb-3 text-center text-sm text-red-600 dark:text-red-400">
+            {saveError}
+          </p>
+        )}
         <Button
           onClick={handleNext}
-          disabled={!canNext()}
+          disabled={!canNext() || saving}
           size="xl"
           className={cn(
             "w-full",
-            canNext()
+            canNext() && !saving
               ? "bg-brand active:opacity-80"
               : "bg-grey-300 dark:bg-grey-700"
           )}
         >
-          {step < STEP_COUNT ? "Continue" : "Done"}
+          {saving
+            ? "Saving..."
+            : step < STEP_COUNT
+              ? "Continue"
+              : "Done"}
         </Button>
       </div>
     </div>
@@ -252,7 +292,7 @@ function Step2({
           Your preferences
         </p>
         <p className="mt-1 text-sm text-grey-500">
-          We'll use this to recommend characters
+          We&apos;ll use this to recommend characters
         </p>
       </div>
 
