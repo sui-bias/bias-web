@@ -5,62 +5,25 @@ import { useRouter } from "next/navigation"
 import { Check, Sparkles } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { cn } from "@/lib/utils"
+import { PROVIDED_CHARACTERS } from "@/lib/mock"
 
-const PROVIDED_CHARACTERS = [
-  {
-    id: "aria",
-    name: "Aria",
-    desc: "Warm and empathetic — your caring friend",
-    genre: "Slice of Life",
-    color: "from-violet-400 to-purple-600",
-  },
-  {
-    id: "kai",
-    name: "Kai",
-    desc: "Cool and straight-talking senior",
-    genre: "School",
-    color: "from-blue-400 to-cyan-600",
-  },
-  {
-    id: "luna",
-    name: "Luna",
-    desc: "Mysterious and wise fantasy mage",
-    genre: "Fantasy",
-    color: "from-pink-400 to-rose-600",
-  },
-  {
-    id: "sol",
-    name: "Sol",
-    desc: "Bright, energetic idol trainee",
-    genre: "Idol/Ent",
-    color: "from-amber-400 to-orange-500",
-  },
-  {
-    id: "nova",
-    name: "Nova",
-    desc: "Strategic mind and gaming pro",
-    genre: "Gaming",
-    color: "from-green-400 to-teal-600",
-  },
-  {
-    id: "echo",
-    name: "Echo",
-    desc: "Gentle healer who soothes your day",
-    genre: "Healing",
-    color: "from-teal-400 to-emerald-600",
-  },
-] as const
-
-type CharId = (typeof PROVIDED_CHARACTERS)[number]["id"]
+const CARD_COLORS = [
+  "from-violet-400 to-purple-600",
+  "from-amber-400 to-orange-500",
+  "from-slate-500 to-slate-700",
+  "from-pink-400 to-rose-600",
+  "from-indigo-400 to-blue-600",
+  "from-emerald-400 to-teal-600",
+]
 
 export default function CharacterGatePage() {
   const router = useRouter()
-  const [selected, setSelected] = useState<CharId | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
 
   function handleStart() {
     if (!selected) return
-    // TODO: start 1:1 chat with selected character
-    router.push("/chat")
+    // 라우팅 계약: 새 1:1 방 — 담당자가 id="new" 처리에서 roomId resolve
+    router.push(`/chat/new?characterId=${selected}`)
   }
 
   return (
@@ -103,7 +66,7 @@ export default function CharacterGatePage() {
 
       {/* Character grid */}
       <div className="grid grid-cols-2 gap-3 px-4 py-4 pb-36">
-        {PROVIDED_CHARACTERS.map((char) => {
+        {PROVIDED_CHARACTERS.map((char, index) => {
           const isSelected = selected === char.id
           return (
             <button
@@ -119,14 +82,24 @@ export default function CharacterGatePage() {
               {/* Character image area */}
               <div
                 className={cn(
-                  "aspect-[3/4] w-full bg-gradient-to-br",
-                  char.color
+                  "relative aspect-[3/4] w-full bg-gradient-to-br",
+                  CARD_COLORS[index % CARD_COLORS.length]
                 )}
               >
+                {char.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={char.imageUrl}
+                    alt=""
+                    className="size-full object-cover"
+                  />
+                ) : null}
                 {/* Genre badge */}
-                <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
-                  {char.genre}
-                </div>
+                {char.genre ? (
+                  <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
+                    {char.genre}
+                  </div>
+                ) : null}
                 {/* Selection check */}
                 {isSelected && (
                   <div className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-full bg-brand">
@@ -146,7 +119,7 @@ export default function CharacterGatePage() {
                   {char.name}
                 </p>
                 <p className="mt-0.5 line-clamp-2 text-xs text-grey-500 dark:text-grey-400">
-                  {char.desc}
+                  {char.intro}
                 </p>
               </div>
             </button>

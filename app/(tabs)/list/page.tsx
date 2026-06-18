@@ -1,26 +1,11 @@
 import { Search, Settings, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
-import { FriendListItem, type FriendKind } from "@/components/friend-list-item"
-
-type FriendItem = {
-  id: string
-  name: string
-  description?: string
-  kind: FriendKind
-}
-
-const FRIENDS: FriendItem[] = [
-  { id: "101", name: "Diana", kind: "user" },
-  { id: "102", name: "Eric", kind: "user" },
-  { id: "103", name: "Bob", kind: "character" },
-  { id: "104", name: "Aria", description: "Online now", kind: "character" },
-  { id: "105", name: "Brian", kind: "user" },
-  { id: "106", name: "Luna", description: "New Character", kind: "character" },
-]
+import { FriendListItem } from "@/components/friend-list-item"
+import { FRIENDS } from "@/lib/mock"
 
 const SORTED_FRIENDS = [...FRIENDS].sort((a, b) =>
-  a.name.localeCompare(b.name, ["ko", "en"], { sensitivity: "base" })
+  a.data.name.localeCompare(b.data.name, ["ko", "en"], { sensitivity: "base" })
 )
 
 export default function ListPage() {
@@ -69,11 +54,12 @@ export default function ListPage() {
         <ul className="divide-y divide-grey-100 dark:divide-grey-800">
           {SORTED_FRIENDS.map((friend) => (
             <FriendListItem
-              key={friend.id}
-              name={friend.name}
-              description={friend.description}
+              key={friend.data.id}
+              name={friend.data.name}
+              intro={friend.data.intro}
+              imageUrl={friend.data.imageUrl}
               kind={friend.kind}
-              href={`/list/${friend.id}`}
+              href={`/list/${friend.data.id}`}
             />
           ))}
         </ul>

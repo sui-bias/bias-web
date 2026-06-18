@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 type ChatType = "direct" | "group"
 
 type ChatListItemProps = {
@@ -6,6 +8,7 @@ type ChatListItemProps = {
   time: string
   type: ChatType
   members?: string[]
+  href?: string
 }
 
 export function ChatListItem({
@@ -14,11 +17,12 @@ export function ChatListItem({
   time,
   type,
   members = [],
+  href,
 }: ChatListItemProps) {
   const visibleMembers = members.slice(0, 4)
 
-  return (
-    <li className="flex items-center gap-2 py-3">
+  const content = (
+    <>
       {type === "group" ? (
         <div className="grid size-10 shrink-0 grid-cols-2 grid-rows-2 overflow-hidden rounded-xl bg-grey-200 dark:bg-grey-700">
           {Array.from({ length: 4 }).map((_, index) => {
@@ -52,6 +56,21 @@ export function ChatListItem({
       <span className="shrink-0 text-xs text-grey-500 dark:text-grey-400">
         {time}
       </span>
+    </>
+  )
+
+  return (
+    <li>
+      {href ? (
+        <Link
+          href={href}
+          className="flex items-center gap-2 py-3 transition-colors hover:bg-grey-50 dark:hover:bg-grey-800/80"
+        >
+          {content}
+        </Link>
+      ) : (
+        <div className="flex items-center gap-2 py-3">{content}</div>
+      )}
     </li>
   )
 }

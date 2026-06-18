@@ -5,12 +5,14 @@ import Link from "next/link"
 
 const CHATS = [
   {
+    id: "room-aria",
     title: "Aria",
     preview: "Are you free tonight?",
     time: "오후 9:42",
     type: "direct" as ChatType,
   },
   {
+    id: "room-weekend",
     title: "Weekend Group",
     preview: "Let's pick a place!",
     time: "오후 8:10",
@@ -18,6 +20,7 @@ const CHATS = [
     members: ["A", "B", "C", "D", "E"],
   },
   {
+    id: "room-kai",
     title: "Kai",
     preview: "I sent you the summary.",
     time: "어제",
@@ -68,12 +71,13 @@ export default function ChatPage() {
         <ul className="divide-y divide-grey-100">
           {CHATS.map((chat) => (
             <ChatListItem
-              key={chat.title}
+              key={chat.id}
               title={chat.title}
               preview={chat.preview}
               time={chat.time}
               type={chat.type}
               members={chat.members}
+              href={`/chat/${chat.id}`}
             />
           ))}
         </ul>

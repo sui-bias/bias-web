@@ -1,12 +1,25 @@
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
+import { notFound } from "next/navigation"
 import { AppHeader } from "@/components/app-header"
+import { CharacterForm } from "@/components/character/character-form"
+import { getCharacter } from "@/lib/mock"
 
-type CharacterEditPageProps = {
-  params: { id: string }
-}
+export default async function CharacterEditPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const character = getCharacter(id)
 
-export default function CharacterEditPage({ params }: CharacterEditPageProps) {
+  if (!character) notFound()
+
+  // 제공 캐릭터는 수정/삭제 불가
+  const blockedReason = character.isOfficial
+    ? "제공 캐릭터는 수정할 수 없습니다."
+    : undefined
+
   return (
     <div className="space-y-4 pt-6">
       <AppHeader
@@ -22,40 +35,12 @@ export default function CharacterEditPage({ params }: CharacterEditPageProps) {
         title="Edit Character"
       />
 
-      <section className="space-y-4 rounded-2xl border border-grey-200 bg-white p-4 dark:border-grey-800 dark:bg-grey-900">
-        <div className="space-y-2">
-          <label
-            htmlFor="name"
-            className="text-xs font-semibold text-grey-600 dark:text-grey-300"
-          >
-            Name
-          </label>
-          <input
-            id="name"
-            defaultValue={params.id}
-            className="h-11 w-full rounded-xl border border-grey-200 bg-white px-3 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label
-            htmlFor="description"
-            className="text-xs font-semibold text-grey-600 dark:text-grey-300"
-          >
-            Description
-          </label>
-          <textarea
-            id="description"
-            rows={4}
-            defaultValue="캐릭터 소개를 입력해 주세요."
-            className="w-full rounded-xl border border-grey-200 bg-white px-3 py-2 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
-          />
-        </div>
-
-        <button className="h-11 w-full rounded-xl bg-brand text-sm font-semibold text-white">
-          Save changes
-        </button>
-      </section>
+      <CharacterForm
+        mode="edit"
+        initial={character}
+        blockedReason={blockedReason}
+        deletable={!character.isOfficial}
+      />
     </div>
   )
 }
