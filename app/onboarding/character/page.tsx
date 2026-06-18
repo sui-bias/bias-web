@@ -5,62 +5,15 @@ import { useRouter } from "next/navigation"
 import { Check, Sparkles } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { cn } from "@/lib/utils"
-
-const PROVIDED_CHARACTERS = [
-  {
-    id: "aria",
-    name: "Aria",
-    desc: "Warm and empathetic — your caring friend",
-    genre: "Slice of Life",
-    color: "from-violet-400 to-purple-600",
-  },
-  {
-    id: "kai",
-    name: "Kai",
-    desc: "Cool and straight-talking senior",
-    genre: "School",
-    color: "from-blue-400 to-cyan-600",
-  },
-  {
-    id: "luna",
-    name: "Luna",
-    desc: "Mysterious and wise fantasy mage",
-    genre: "Fantasy",
-    color: "from-pink-400 to-rose-600",
-  },
-  {
-    id: "sol",
-    name: "Sol",
-    desc: "Bright, energetic idol trainee",
-    genre: "Idol/Ent",
-    color: "from-amber-400 to-orange-500",
-  },
-  {
-    id: "nova",
-    name: "Nova",
-    desc: "Strategic mind and gaming pro",
-    genre: "Gaming",
-    color: "from-green-400 to-teal-600",
-  },
-  {
-    id: "echo",
-    name: "Echo",
-    desc: "Gentle healer who soothes your day",
-    genre: "Healing",
-    color: "from-teal-400 to-emerald-600",
-  },
-] as const
-
-type CharId = (typeof PROVIDED_CHARACTERS)[number]["id"]
+import { PROVIDED_CHARACTERS, type ProvidedCharacterId } from "@/lib/provided-characters"
 
 export default function CharacterGatePage() {
   const router = useRouter()
-  const [selected, setSelected] = useState<CharId | null>(null)
+  const [selected, setSelected] = useState<ProvidedCharacterId | null>(null)
 
   function handleStart() {
     if (!selected) return
-    // TODO: start 1:1 chat with selected character
-    router.push("/chat")
+    router.push(`/chat/${selected}`)
   }
 
   return (
@@ -124,8 +77,15 @@ export default function CharacterGatePage() {
                 )}
               >
                 {/* Genre badge */}
-                <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
-                  {char.genre}
+                <div className="absolute top-2 left-2 flex gap-1">
+                  {char.genre.map((g, index) => (
+                    <div
+                      key={index}
+                      className="rounded-full bg-black/30 px-2 py-0.5 text-xs text-white"
+                    >
+                      {g}
+                    </div>
+                  ))}
                 </div>
                 {/* Selection check */}
                 {isSelected && (

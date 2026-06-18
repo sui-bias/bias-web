@@ -1,29 +1,23 @@
 import { Plus, Search, Settings } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { ChatListItem, type ChatType } from "@/components/chat-list-item"
+import { PROVIDED_CHARACTERS } from "@/lib/provided-characters"
 import Link from "next/link"
 
-const CHATS = [
-  {
-    title: "Aria",
-    preview: "Are you free tonight?",
-    time: "오후 9:42",
-    type: "direct" as ChatType,
-  },
-  {
-    title: "Weekend Group",
-    preview: "Let's pick a place!",
-    time: "오후 8:10",
-    type: "group" as ChatType,
-    members: ["A", "B", "C", "D", "E"],
-  },
-  {
-    title: "Kai",
-    preview: "I sent you the summary.",
-    time: "어제",
-    type: "direct" as ChatType,
-  },
-]
+const CHATS: Array<{
+  roomId: string
+  title: string
+  preview: string
+  time: string
+  type: ChatType
+  members?: string[]
+}> = PROVIDED_CHARACTERS.map((character) => ({
+  roomId: character.id,
+  title: character.name,
+  preview: character.firstMessage,
+  time: "방금",
+  type: "direct",
+}))
 
 export default function ChatPage() {
   return (
@@ -68,12 +62,13 @@ export default function ChatPage() {
         <ul className="divide-y divide-grey-100">
           {CHATS.map((chat) => (
             <ChatListItem
-              key={chat.title}
+              key={chat.roomId}
               title={chat.title}
               preview={chat.preview}
               time={chat.time}
               type={chat.type}
               members={chat.members}
+              href={`/chat/${chat.roomId}`}
             />
           ))}
         </ul>
