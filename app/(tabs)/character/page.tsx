@@ -1,30 +1,14 @@
 import Link from "next/link"
-import { Plus, Search } from "lucide-react"
+import { Plus } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
+import { MY_CHARACTERS } from "@/lib/mock"
 
-const MY_CHARACTERS = [
-  {
-    id: "haneul",
-    name: "하늘",
-    description: "다정하고 공감 잘해주는 친구 캐릭터",
-    genre: "Healing",
-    color: "from-violet-400 to-indigo-500",
-  },
-  {
-    id: "mira",
-    name: "미라",
-    description: "차분하게 조언해주는 현실 조력자",
-    genre: "Daily",
-    color: "from-sky-400 to-cyan-500",
-  },
-  {
-    id: "reo",
-    name: "레오",
-    description: "열정 넘치고 에너지 주는 동기부여형",
-    genre: "Coach",
-    color: "from-amber-400 to-orange-500",
-  },
-] as const
+const CARD_COLORS = [
+  "from-violet-400 to-indigo-500",
+  "from-sky-400 to-cyan-500",
+  "from-amber-400 to-orange-500",
+  "from-emerald-400 to-teal-500",
+]
 
 export default function CharacterPage() {
   return (
@@ -52,25 +36,32 @@ export default function CharacterPage() {
       />
 
       <section className="grid grid-cols-2 gap-3 px-4 pb-6">
-        {MY_CHARACTERS.map((character) => (
+        {MY_CHARACTERS.map((character, index) => (
           <Link
             key={character.id}
             href={`/character/${character.id}`}
             className="overflow-hidden rounded-xl border border-grey-200 transition-transform active:scale-95 dark:border-grey-800"
           >
             <div
-              className={`relative aspect-square bg-gradient-to-br ${character.color}`}
+              className={`relative aspect-square bg-gradient-to-br ${
+                CARD_COLORS[index % CARD_COLORS.length]
+              }`}
             >
-              <span className="absolute top-2 left-2 rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-medium text-white">
-                {character.genre}
-              </span>
+              {character.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={character.imageUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : null}
             </div>
             <div className="bg-white p-3 dark:bg-grey-900">
               <p className="text-sm font-bold text-grey-900 dark:text-white">
                 {character.name}
               </p>
               <p className="mt-1 line-clamp-2 text-xs text-grey-500 dark:text-grey-400">
-                {character.description}
+                {character.intro}
               </p>
             </div>
           </Link>

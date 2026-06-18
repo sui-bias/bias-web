@@ -5,15 +5,27 @@ import { useRouter } from "next/navigation"
 import { Check, Sparkles } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { cn } from "@/lib/utils"
-import { PROVIDED_CHARACTERS, type ProvidedCharacterId } from "@/lib/provided-characters"
+import { PROVIDED_CHARACTERS } from "@/lib/mock"
+
+const CARD_COLORS = [
+  "from-violet-400 to-purple-600",
+  "from-amber-400 to-orange-500",
+  "from-slate-500 to-slate-700",
+  "from-pink-400 to-rose-600",
+  "from-indigo-400 to-blue-600",
+  "from-emerald-400 to-teal-600",
+]
 
 export default function CharacterGatePage() {
   const router = useRouter()
-  const [selected, setSelected] = useState<ProvidedCharacterId | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+
+  const selectedChar = PROVIDED_CHARACTERS.find((c) => c.id === selected)
 
   function handleStart() {
-    if (!selected) return
-    router.push(`/chat/${selected}`)
+    if (!selectedChar?.chatCharacterId) return
+    // 팀원 채팅 라우트: 방 id = provided 캐릭터 id
+    router.push(`/chat/${selectedChar.chatCharacterId}`)
   }
 
   return (
@@ -56,14 +68,17 @@ export default function CharacterGatePage() {
 
       {/* Character grid */}
       <div className="grid grid-cols-2 gap-3 px-4 py-4 pb-36">
-        {PROVIDED_CHARACTERS.map((char) => {
+        {PROVIDED_CHARACTERS.map((char, index) => {
           const isSelected = selected === char.id
+          const chatReady = Boolean(char.chatCharacterId)
           return (
             <button
               key={char.id}
-              onClick={() => setSelected(char.id)}
+              onClick={() => chatReady && setSelected(char.id)}
+              disabled={!chatReady}
               className={cn(
-                "relative flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all active:scale-95",
+                "relative flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all",
+                chatReady ? "active:scale-95" : "cursor-not-allowed",
                 isSelected
                   ? "border-brand shadow-lg shadow-brand/20"
                   : "border-transparent"
@@ -72,21 +87,35 @@ export default function CharacterGatePage() {
               {/* Character image area */}
               <div
                 className={cn(
-                  "aspect-[3/4] w-full bg-gradient-to-br",
-                  char.color
+                  "relative aspect-[3/4] w-full bg-gradient-to-br",
+                  CARD_COLORS[index % CARD_COLORS.length]
                 )}
               >
+                {char.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={char.imageUrl}
+                    alt=""
+                    className={cn(
+                      "size-full object-cover",
+                      !chatReady && "opacity-60"
+                    )}
+                  />
+                ) : null}
                 {/* Genre badge */}
-                <div className="absolute top-2 left-2 flex gap-1">
-                  {char.genre.map((g, index) => (
-                    <div
-                      key={index}
-                      className="rounded-full bg-black/30 px-2 py-0.5 text-xs text-white"
-                    >
-                      {g}
-                    </div>
-                  ))}
-                </div>
+                {char.genre ? (
+                  <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
+                    {char.genre}
+                  </div>
+                ) : null}
+                {/* 준비중 (채팅 미지원) */}
+                {!chatReady ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                    <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-grey-700">
+                      준비중
+                    </span>
+                  </div>
+                ) : null}
                 {/* Selection check */}
                 {isSelected && (
                   <div className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-full bg-brand">
@@ -106,7 +135,7 @@ export default function CharacterGatePage() {
                   {char.name}
                 </p>
                 <p className="mt-0.5 line-clamp-2 text-xs text-grey-500 dark:text-grey-400">
-                  {char.desc}
+                  {char.intro}
                 </p>
               </div>
             </button>
