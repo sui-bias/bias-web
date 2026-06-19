@@ -3,7 +3,7 @@ import Link from "next/link"
 type FriendKind = "user" | "character"
 
 type FriendListItemProps = {
-  name: string
+  display_name: string
   intro?: string
   imageUrl?: string
   kind: FriendKind
@@ -12,7 +12,7 @@ type FriendListItemProps = {
 
 // 카카오톡 친구목록 행: 원형 아바타 + 이름 + 상태 메시지. 캐릭터는 "C" 배지로 구분.
 export function FriendListItem({
-  name,
+  display_name,
   intro,
   imageUrl,
   kind,
@@ -26,7 +26,7 @@ export function FriendListItem({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={imageUrl} alt="" className="size-full object-cover" />
           ) : (
-            name.slice(0, 1)
+            display_name.slice(0, 1)
           )}
         </div>
         {kind === "character" && (
@@ -37,7 +37,7 @@ export function FriendListItem({
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-grey-900 dark:text-white">
-          {name}
+          {display_name}
         </p>
         {intro ? (
           <p className="truncate text-xs text-grey-500 dark:text-grey-400">
