@@ -132,9 +132,9 @@ export default function CharacterGatePage() {
                   />
                 ) : null}
                 {/* Genre badge */}
-                {char.genre ? (
+                {char.genre?.length ? (
                   <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
-                    {char.genre}
+                    {char.genre[0]}
                   </div>
                 ) : null}
                 {/* 준비중 (채팅 미지원) */}

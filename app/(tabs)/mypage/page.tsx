@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import {
   Bell,
@@ -14,21 +16,21 @@ import {
   Users,
 } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { PLANS } from "@/lib/plans"
 
-// TODO(api): 실제 사용자/플랜/사용량으로 교체
-const CURRENT_USER = {
-  displayName: "재현",
-  nickname: "jade",
-  walletAddress: "0x9a2f...77c4",
-  plan: "free" as "free" | "plus",
-  characterCount: 0,
-  characterLimit: 2,
-  messageUsage: 18,
-  messageLimit: 50,
+function shortAddr(addr?: string | null) {
+  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "지갑 미연결"
 }
 
 export default function MyPage() {
-  const isPlus = CURRENT_USER.plan === "plus"
+  const { address, user, plan, loading } = useCurrentUser()
+  const isPlus = plan !== "free"
+  const characterLimit = PLANS[plan].characterLimit
+  const displayName = user?.display_name ?? (loading ? "불러오는 중…" : "게스트")
+  const handle = user?.username ?? "guest"
+  // TODO(api): 캐릭터 개수·메시지 사용량은 아직 DB 미집계 → placeholder
+  const characterUsage = characterLimit > 0 ? `0 / ${characterLimit}` : "Plus 전용"
 
   return (
     <div className="space-y-6 pt-6 pb-6">
@@ -41,7 +43,7 @@ export default function MyPage() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="truncate text-lg font-bold text-grey-900 dark:text-white">
-                {CURRENT_USER.displayName}
+                {displayName}
               </p>
               <span
                 className={
@@ -50,11 +52,11 @@ export default function MyPage() {
                     : "rounded-full bg-grey-200 px-2 py-0.5 text-[11px] font-semibold text-grey-600 dark:bg-grey-700 dark:text-grey-200"
                 }
               >
-                {isPlus ? "PLUS" : "FREE"}
+                {plan.toUpperCase()}
               </span>
             </div>
             <p className="truncate text-sm text-grey-500 dark:text-grey-400">
-              @{CURRENT_USER.nickname} · {CURRENT_USER.walletAddress}
+              @{handle} · {shortAddr(address)}
             </p>
           </div>
           <Link
@@ -73,7 +75,7 @@ export default function MyPage() {
             <div className="flex items-center gap-2">
               <Sparkles size={16} className="text-brand" />
               <span className="text-sm font-bold text-grey-900 dark:text-white">
-                {isPlus ? "Plus 플랜" : "Free 플랜"}
+                {PLANS[plan].name} 플랜
               </span>
             </div>
             <Link
@@ -84,18 +86,8 @@ export default function MyPage() {
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <Usage
-              label="메시지"
-              value={`${CURRENT_USER.messageUsage} / ${CURRENT_USER.messageLimit}`}
-            />
-            <Usage
-              label="내 캐릭터"
-              value={
-                isPlus
-                  ? `${CURRENT_USER.characterCount} / ${CURRENT_USER.characterLimit}`
-                  : "Plus 전용"
-              }
-            />
+            <Usage label="메시지" value="—" />
+            <Usage label="내 캐릭터" value={characterUsage} />
           </div>
         </div>
       </section>
@@ -106,11 +98,7 @@ export default function MyPage() {
           icon={UserCog}
           label="내 캐릭터 관리"
           href="/character"
-          trailing={
-            isPlus
-              ? `${CURRENT_USER.characterCount}/${CURRENT_USER.characterLimit}`
-              : undefined
-          }
+          trailing={characterLimit > 0 ? `0/${characterLimit}` : undefined}
         />
         <MenuRow icon={Users} label="내 그룹 방 관리" href="/mypage/groups" />
         <MenuRow

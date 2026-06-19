@@ -65,6 +65,9 @@ type ProfileActionButtonProps = {
   label: string
   href?: string
   disabled?: boolean
+  onClick?: () => void
+  /** 강조 스타일(브랜드색) */
+  primary?: boolean
 }
 
 export function ProfileActionButton({
@@ -72,12 +75,16 @@ export function ProfileActionButton({
   label,
   href,
   disabled,
+  onClick,
+  primary,
 }: ProfileActionButtonProps) {
   const className = cn(
     "flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-2 text-xs font-medium transition-colors",
     disabled
       ? "cursor-not-allowed text-grey-300 dark:text-grey-600"
-      : "text-grey-700 hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
+      : primary
+        ? "text-brand hover:bg-brand-lightest dark:hover:bg-brand/10"
+        : "text-grey-700 hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
   )
 
   if (href && !disabled) {
@@ -90,7 +97,12 @@ export function ProfileActionButton({
   }
 
   return (
-    <button type="button" disabled={disabled} className={className}>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={className}
+    >
       <Icon size={20} />
       {label}
     </button>

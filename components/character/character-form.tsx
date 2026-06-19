@@ -44,7 +44,7 @@ export function CharacterForm({
   deletable,
 }: CharacterFormProps) {
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "")
-  const [name, setName] = useState(initial?.name ?? "")
+  const [name, setName] = useState(initial?.display_name ?? "")
   const [age, setAge] = useState(initial?.age ? String(initial.age) : "")
   const [job, setJob] = useState(initial?.job ?? "")
   const [intro, setIntro] = useState(initial?.intro ?? "")
@@ -101,7 +101,7 @@ export function CharacterForm({
 
   function buildDraft(): CharacterDraft {
     return {
-      name: name.trim(),
+      display_name: name.trim(),
       imageUrl: imageUrl || undefined,
       age: age ? Number(age) : undefined,
       job: job.trim() || undefined,
@@ -147,7 +147,7 @@ export function CharacterForm({
     if (!window.confirm("이 캐릭터를 삭제할까요? 진행 중인 방에는 삭제 안내가 표시됩니다.")) {
       return
     }
-    console.log("delete character", initial?.name)
+    console.log("delete character", initial?.display_name)
   }
 
   return (

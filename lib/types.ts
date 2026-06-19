@@ -138,16 +138,43 @@ export function visibilityLabel(visibility: Visibility): string {
   )
 }
 
-type Room = {
+// ── 채팅방 ──
+// 참여자는 사람+캐릭터를 하나의 배열에 판별 유니온으로 담는다(입장 순서 유지).
+// 캐릭터만 "데려온 사람(ownerAddress)"을 가진다.
+export type RoomType = "direct" | "group"
+
+export type Participant =
+  | { type: "user"; address: string }
+  | { type: "character"; characterId: string; ownerAddress: string }
+
+export interface Room {
   id: string
-  owner: string
-  participants: string[]
+  type: RoomType // direct(1:1) / group(2:2)
   name: string
+  ownerAddress: string // 방 생성자
+  participants: Participant[]
+  createdAt: string
 }
 
-type Chat = {
+// 누가 보냈는지 — 유저/캐릭터 구분
+export type SenderRef =
+  | { type: "user"; address: string }
+  | { type: "character"; characterId: string }
+
+// 사진의 Chat = 말풍선 하나. AI 한 턴이 여러 말풍선이면 turnId 로 묶는다.
+export interface Message {
+  id: string
   roomId: string
-  chat: string
-  chatter: string
-  created_at: Date
+  sender: SenderRef
+  text: string
+  turnId?: string
+  createdAt: string
+}
+
+// 정원 헬퍼: group MVP = 사람 ≤2 + 캐릭터 ≤2
+export function countParticipants(participants: Participant[]) {
+  return {
+    users: participants.filter((p) => p.type === "user").length,
+    characters: participants.filter((p) => p.type === "character").length,
+  }
 }
