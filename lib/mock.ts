@@ -181,58 +181,16 @@ export const MOCK_CHARACTERS: Character[] = [
   },
 ]
 
-export const MOCK_USERS: User[] = [
-  {
-    id: "201",
-    display_name: "Diana",
-    username: "diana88",
-    intro: "주말엔 등산 가요 ⛰️",
-    address: "0x8f3a...c21d",
-    genres: ["Healing", "Sports"],
-    language: "ko",
-    age_group: "20s",
-    visibility: "public",
-    plan: "free",
-    imageUrl: "/avatars/diana.png",
-  },
-  {
-    id: "202",
-    display_name: "Eric",
-    username: "eric_dev",
-    intro: "프로젝트 마감 중...",
-    address: "0x42bb...90fa",
-    genres: ["Gaming", "Other"],
-    language: "ko",
-    age_group: "30s",
-    visibility: "friends",
-    plan: "free",
-    imageUrl: "/avatars/eric.png",
-  },
-  {
-    id: "205",
-    display_name: "Brian",
-    username: "brian_tea",
-    intro: "커피 한 잔 하실 분?",
-    address: "0x71cc...4e02",
-    genres: ["Slice of Life", "Romance"],
-    language: "ko",
-    age_group: "20s",
-    visibility: "public",
-    plan: "premium",
-    imageUrl: "/avatars/brian.png",
-  },
-]
-
 // 기본 제공(official) 캐릭터 — 온보딩 선택 / free 사용자용
 export const PROVIDED_CHARACTERS = MOCK_CHARACTERS.filter((c) => c.isOfficial)
 
 // "My Bias" 탭 = 내가 만든(제공 캐릭터 아닌) 캐릭터
 export const MY_CHARACTERS = MOCK_CHARACTERS.filter((c) => !c.isOfficial)
 
-export const FRIENDS: FriendEntry[] = [
-  ...MOCK_CHARACTERS.map((data): FriendEntry => ({ kind: "character", data })),
-  ...MOCK_USERS.map((data): FriendEntry => ({ kind: "user", data })),
-]
+// 실제 유저는 Supabase 에서 온다(친구 = lib/friends). 여기엔 캐릭터만 둔다.
+export const FRIENDS: FriendEntry[] = MOCK_CHARACTERS.map(
+  (data): FriendEntry => ({ kind: "character", data })
+)
 
 export function getFriend(id: string): FriendEntry | undefined {
   return FRIENDS.find((entry) => entry.data.id === id)
