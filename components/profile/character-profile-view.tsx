@@ -19,7 +19,7 @@ export function CharacterProfileView({
   return (
     <div>
       <ProfileHero
-        name={character.name}
+        name={character.display_name}
         intro={character.intro}
         imageUrl={character.imageUrl}
         backHref="/list"

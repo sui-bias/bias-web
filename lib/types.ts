@@ -1,31 +1,71 @@
 // 핵심 도메인 타입. 생성/프로필/리스트 화면이 모두 이 타입을 공유한다.
 // spiderman.yaml 캐릭터 카드를 1:1 매핑한 결과. 자세한 배경은 docs/DEVELOPMENT.md 참고.
 
-export type Affinity = 1 | 2 | 3 | 4
-
-export type Visibility = "public" | "friends" | "private"
-
 // 실제 사람 친구(상호 팔로우). 캐릭터와 함께 친구 목록에 나타난다.
+export type Genres =
+  | "Romance"
+  | "Fantasy"
+  | "School"
+  | "Slice of Life"
+  | "Idol/Ent"
+  | "Gaming"
+  | "Sports"
+  | "Mystery"
+  | "Healing"
+  | "Other"
+
+export type AgeGroups = "Teens" | "20s" | "30s" | "40s+"
+
+export const MEMWAL_STEPS = [
+  "pending",
+  "creating",
+  "delegate_memwal",
+  "delegate_seal",
+  "done",
+  "failed",
+] as const
+
+export type MemwalStep = (typeof MEMWAL_STEPS)[number]
+
 export interface User {
   id: string
-  name: string
+  address: string
+  display_name: string
+  username: string
+  genres: Genres[]
+  language: string
+  age_group: AgeGroups
+  visibility: string
+  plan?: string
+  memwal_step?: MemwalStep
+  memwal_account_id?: string
+  memwal_delegate_pubkey?: string
+  seal_delegate_pubkey?: string
+  memwal_error?: string | null
   imageUrl?: string
   intro?: string // 상태 메시지
-  walletAddress?: string
-  online?: boolean
 }
+
+// -------------------------------
+
+// 캐릭터
+
+export type Affinity = 1 | 2 | 3 | 4
+export type Visibility = "public" | "friends" | "private"
+// 생성/수정 폼이 다루는 값. id/ownerId/isOfficial은 서버가 채운다.
+export type CharacterDraft = Omit<Character, "id" | "ownerId" | "isOfficial">
 
 export interface Character {
   id: string
   // profile
-  name: string
+  display_name: string
   imageUrl?: string
   age?: number
   job?: string
   nativeLanguage?: string // 말투 뉘앙스용(출력 언어와 별개)
   narrative?: string // 서사/백스토리
   intro: string // 한 줄 소개 (status message로도 사용)
-  genre?: string // 피드/배지 표시용 장르
+  genre?: string[] // 피드/배지 표시용 장르
   // basic
   background?: string
   family?: string
@@ -53,14 +93,23 @@ export interface Character {
   chatCharacterId?: string
 }
 
-// 생성/수정 폼이 다루는 값. id/ownerId/isOfficial은 서버가 채운다.
-export type CharacterDraft = Omit<Character, "id" | "ownerId" | "isOfficial">
-
 export const MBTI_TYPES = [
-  "INTJ", "INTP", "ENTJ", "ENTP",
-  "INFJ", "INFP", "ENFJ", "ENFP",
-  "ISTJ", "ISFJ", "ESTJ", "ESFJ",
-  "ISTP", "ISFP", "ESTP", "ESFP",
+  "INTJ",
+  "INTP",
+  "ENTJ",
+  "ENTP",
+  "INFJ",
+  "INFP",
+  "ENFJ",
+  "ENFP",
+  "ISTJ",
+  "ISFJ",
+  "ESTJ",
+  "ESFJ",
+  "ISTP",
+  "ISFP",
+  "ESTP",
+  "ESFP",
 ] as const
 
 export const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
@@ -87,4 +136,18 @@ export function visibilityLabel(visibility: Visibility): string {
     VISIBILITY_OPTIONS.find((option) => option.value === visibility)?.label ??
     visibility
   )
+}
+
+type Room = {
+  id: string
+  owner: string
+  participants: string[]
+  name: string
+}
+
+type Chat = {
+  roomId: string
+  chat: string
+  chatter: string
+  created_at: Date
 }

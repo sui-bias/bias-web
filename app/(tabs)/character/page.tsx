@@ -58,7 +58,7 @@ export default function CharacterPage() {
             </div>
             <div className="bg-white p-3 dark:bg-grey-900">
               <p className="text-sm font-bold text-grey-900 dark:text-white">
-                {character.name}
+                {character.display_name}
               </p>
               <p className="mt-1 line-clamp-2 text-xs text-grey-500 dark:text-grey-400">
                 {character.intro}

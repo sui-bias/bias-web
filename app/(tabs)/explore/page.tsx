@@ -25,7 +25,9 @@ export default function ExplorePage() {
     const q = keyword.trim().toLowerCase()
     if (!q) return PUBLIC_CHARACTERS
     return PUBLIC_CHARACTERS.filter((c) =>
-      `${c.name} ${c.intro} ${c.genre ?? ""}`.toLowerCase().includes(q)
+      `${c.display_name} ${c.intro} ${(c.genre ?? []).join(" ")}`
+        .toLowerCase()
+        .includes(q)
     )
   }, [keyword])
 
@@ -77,7 +79,7 @@ export default function ExplorePage() {
                     ) : null}
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent p-2">
                       <p className="truncate text-xs font-semibold text-white">
-                        {character.name}
+                        {character.display_name}
                       </p>
                     </div>
                   </div>

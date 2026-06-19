@@ -11,7 +11,9 @@ import { listFriends } from "@/lib/friends"
 import type { UserRow } from "@/lib/users"
 
 const CHARACTERS = [...MOCK_CHARACTERS].sort((a, b) =>
-  a.name.localeCompare(b.name, ["ko", "en"], { sensitivity: "base" })
+  a.display_name.localeCompare(b.display_name, ["ko", "en"], {
+    sensitivity: "base",
+  })
 )
 
 export default function ListPage() {
@@ -85,7 +87,7 @@ export default function ListPage() {
             {friends.map((f) => (
               <FriendListItem
                 key={f.address}
-                name={f.display_name}
+                display_name={f.display_name}
                 intro={`@${f.username}`}
                 kind="user"
                 href={`/list/${f.address}`}
@@ -104,7 +106,7 @@ export default function ListPage() {
           {CHARACTERS.map((c) => (
             <FriendListItem
               key={c.id}
-              name={c.name}
+              display_name={c.display_name}
               intro={c.intro}
               imageUrl={c.imageUrl}
               kind="character"

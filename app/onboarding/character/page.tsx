@@ -6,6 +6,7 @@ import { Check, Sparkles } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { cn } from "@/lib/utils"
 import { PROVIDED_CHARACTERS } from "@/lib/mock"
+import { Button } from "@/components/ui/button"
 
 const CARD_COLORS = [
   "from-violet-400 to-purple-600",
@@ -32,7 +33,7 @@ export default function CharacterGatePage() {
     <div className="flex min-h-svh flex-col bg-white dark:bg-grey-900">
       {/* Header */}
       <AppHeader
-        className="px-6 pt-10 pb-2"
+        className="px-6 pt-8 pb-2"
         center={
           <>
             <div className="flex items-center gap-2">
@@ -41,12 +42,12 @@ export default function CharacterGatePage() {
                 Provided Characters
               </span>
             </div>
-            <h1 className="mt-2 text-2xl font-bold text-grey-900 dark:text-white">
+            <h1 className="mt-2 text-xl font-bold text-grey-900 dark:text-white">
               Pick a character
               <br />
               to start chatting
             </h1>
-            <p className="mt-1 text-sm text-grey-500">You can switch anytime</p>
+            {/* <p className="mt-1 text-sm text-grey-500">You can switch anytime</p> */}
           </>
         }
       />
@@ -79,9 +80,7 @@ export default function CharacterGatePage() {
               className={cn(
                 "relative flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all",
                 chatReady ? "active:scale-95" : "cursor-not-allowed",
-                isSelected
-                  ? "border-brand shadow-lg shadow-brand/20"
-                  : "border-transparent"
+                isSelected ? "border-brand shadow-lg shadow-brand/20" : "border"
               )}
             >
               {/* Character image area */}
@@ -103,9 +102,9 @@ export default function CharacterGatePage() {
                   />
                 ) : null}
                 {/* Genre badge */}
-                {char.genre ? (
+                {char.genre?.length ? (
                   <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
-                    {char.genre}
+                    {char.genre[0]}
                   </div>
                 ) : null}
                 {/* 준비중 (채팅 미지원) */}
@@ -127,12 +126,11 @@ export default function CharacterGatePage() {
               {/* Character info */}
               <div
                 className={cn(
-                  "bg-white p-3 transition-colors dark:bg-grey-800",
-                  isSelected && "bg-brand-lightest dark:bg-grey-800"
+                  "bg-white p-3 transition-colors dark:bg-grey-800"
                 )}
               >
                 <p className="text-sm font-bold text-grey-900 dark:text-white">
-                  {char.name}
+                  {char.display_name}
                 </p>
                 <p className="mt-0.5 line-clamp-2 text-xs text-grey-500 dark:text-grey-400">
                   {char.intro}
@@ -144,19 +142,15 @@ export default function CharacterGatePage() {
       </div>
 
       {/* Bottom CTA */}
-      <div className="fixed right-0 bottom-0 left-0 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-10 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
-        <button
+      <div className="fixed right-0 bottom-0 left-0 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-8 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
+        <Button
           onClick={handleStart}
           disabled={!selected}
-          className={cn(
-            "flex h-14 w-full items-center justify-center rounded-xl text-base font-semibold text-white transition-opacity",
-            selected
-              ? "bg-brand active:opacity-80"
-              : "bg-grey-300 dark:bg-grey-700"
-          )}
+          size="xl"
+          className="w-full"
         >
           {selected ? "Start chatting" : "Select a character"}
-        </button>
+        </Button>
       </div>
     </div>
   )
