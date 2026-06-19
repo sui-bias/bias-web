@@ -1,5 +1,6 @@
 import { supabase } from "./supabase"
 import { Plan } from "./plans"
+import type { MemwalStep } from "./types"
 
 // users 테이블 1행 = 한 계정. PK는 Sui 지갑 주소.
 export interface UserRow {
@@ -14,6 +15,11 @@ export interface UserRow {
   agree_marketing: boolean
   onboarding_complete: boolean
   plan?: Plan // DB 기본값 'free'
+  memwal_step?: MemwalStep
+  memwal_account_id?: string
+  memwal_delegate_pubkey?: string
+  seal_delegate_pubkey?: string
+  memwal_error?: string | null
   created_at?: string
 }
 
@@ -26,7 +32,14 @@ export interface SubscriptionRow {
 
 export type ProfileInput = Omit<
   UserRow,
-  "address" | "created_at" | "onboarding_complete"
+  | "address"
+  | "created_at"
+  | "onboarding_complete"
+  | "memwal_step"
+  | "memwal_account_id"
+  | "memwal_delegate_pubkey"
+  | "seal_delegate_pubkey"
+  | "memwal_error"
 >
 
 /** username 사용 가능 여부 확인. excludeAddress가 있으면 본인 주소는 제외한다. */
@@ -63,6 +76,30 @@ export async function getUser(address: string): Promise<UserRow | null> {
     return null
   }
   return (data as UserRow) ?? null
+}
+
+export async function updateMemwalState(
+  address: string,
+  state: Pick<
+    UserRow,
+    | "memwal_step"
+    | "memwal_account_id"
+    | "memwal_delegate_pubkey"
+    | "seal_delegate_pubkey"
+    | "memwal_error"
+  >
+): Promise<UserRow> {
+  const { data, error } = await supabase
+    .from("users")
+    .update(state)
+    .eq("address", address)
+    .select("*")
+    .single()
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "failed to update memwal state")
+  }
+  return data as UserRow
 }
 
 /** 회원가입/프로필 저장. 주소 기준 upsert 후 onboarding 완료 표시. */

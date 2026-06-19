@@ -161,7 +161,7 @@ export default function ProfilePage() {
         agree_privacy: form.agreePrivacy,
         agree_marketing: form.agreeMarketing,
       })
-      router.push("/onboarding/character")
+      router.push("/onboarding/account")
     } catch (e) {
       if (e instanceof Error && e.message === "USERNAME_TAKEN") {
         setSaveError("Username is already taken. Please choose another one.")

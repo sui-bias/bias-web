@@ -16,6 +16,17 @@ export type Genres =
 
 export type AgeGroups = "Teens" | "20s" | "30s" | "40s+"
 
+export const MEMWAL_STEPS = [
+  "pending",
+  "creating",
+  "delegate_memwal",
+  "delegate_seal",
+  "done",
+  "failed",
+] as const
+
+export type MemwalStep = (typeof MEMWAL_STEPS)[number]
+
 export interface User {
   id: string
   address: string
@@ -26,6 +37,11 @@ export interface User {
   age_group: AgeGroups
   visibility: string
   plan?: string
+  memwal_step?: MemwalStep
+  memwal_account_id?: string
+  memwal_delegate_pubkey?: string
+  seal_delegate_pubkey?: string
+  memwal_error?: string | null
   imageUrl?: string
   intro?: string // 상태 메시지
 }
@@ -120,4 +136,18 @@ export function visibilityLabel(visibility: Visibility): string {
     VISIBILITY_OPTIONS.find((option) => option.value === visibility)?.label ??
     visibility
   )
+}
+
+type Room = {
+  id: string
+  owner: string
+  participants: string[]
+  name: string
+}
+
+type Chat = {
+  roomId: string
+  chat: string
+  chatter: string
+  created_at: Date
 }
