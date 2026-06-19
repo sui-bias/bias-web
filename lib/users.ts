@@ -1,5 +1,6 @@
 import { supabase } from "./supabase"
 import { Plan } from "./plans"
+import type { MemwalStep } from "./types"
 
 // users 테이블 1행 = 한 계정. PK는 Sui 지갑 주소.
 export interface UserRow {
@@ -14,6 +15,11 @@ export interface UserRow {
   agree_marketing: boolean
   onboarding_complete: boolean
   plan?: Plan // DB 기본값 'free'
+  memwal_step?: MemwalStep
+  memwal_account_id?: string
+  memwal_delegate_pubkey?: string
+  seal_delegate_pubkey?: string
+  memwal_error?: string | null
   created_at?: string
 }
 
@@ -26,8 +32,36 @@ export interface SubscriptionRow {
 
 export type ProfileInput = Omit<
   UserRow,
-  "address" | "created_at" | "onboarding_complete"
+  | "address"
+  | "created_at"
+  | "onboarding_complete"
+  | "memwal_step"
+  | "memwal_account_id"
+  | "memwal_delegate_pubkey"
+  | "seal_delegate_pubkey"
+  | "memwal_error"
 >
+
+/** username 사용 가능 여부 확인. excludeAddress가 있으면 본인 주소는 제외한다. */
+export async function isUsernameAvailable(
+  username: string,
+  excludeAddress?: string
+): Promise<boolean> {
+  const normalized = username.trim()
+  if (!normalized) return false
+
+  let query = supabase.from("users").select("address").eq("username", normalized)
+  if (excludeAddress) {
+    query = query.neq("address", excludeAddress)
+  }
+
+  const { data, error } = await query.limit(1).maybeSingle()
+  if (error) {
+    console.error("[users] isUsernameAvailable error:", error.message)
+    throw new Error(error.message)
+  }
+  return !data
+}
 
 /** 주소로 기존 유저 조회. 없으면 null. */
 export async function getUser(address: string): Promise<UserRow | null> {
@@ -44,11 +78,51 @@ export async function getUser(address: string): Promise<UserRow | null> {
   return (data as UserRow) ?? null
 }
 
+export async function updateMemwalState(
+  address: string,
+  state: Pick<
+    UserRow,
+    | "memwal_step"
+    | "memwal_account_id"
+    | "memwal_delegate_pubkey"
+    | "seal_delegate_pubkey"
+    | "memwal_error"
+  >
+): Promise<UserRow> {
+  const { data, error } = await supabase
+    .from("users")
+    .update(state)
+    .eq("address", address)
+    .select("*")
+    .single()
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "failed to update memwal state")
+  }
+  return data as UserRow
+}
+
 /** 회원가입/프로필 저장. 주소 기준 upsert 후 onboarding 완료 표시. */
 export async function saveProfile(
   address: string,
   profile: ProfileInput
 ): Promise<UserRow | null> {
+  const { data: usernameMatches, error: usernameCheckError } = await supabase
+    .from("users")
+    .select("address")
+    .eq("username", profile.username)
+    .neq("address", address)
+    .limit(1)
+
+  if (usernameCheckError) {
+    console.error("[users] username check error:", usernameCheckError.message)
+    throw new Error(usernameCheckError.message)
+  }
+
+  if (usernameMatches && usernameMatches.length > 0) {
+    throw new Error("USERNAME_TAKEN")
+  }
+
   const row: UserRow = {
     address,
     onboarding_complete: true,
@@ -63,6 +137,9 @@ export async function saveProfile(
 
   if (error) {
     console.error("[users] saveProfile error:", error.message)
+    if (error.code === "23505") {
+      throw new Error("USERNAME_TAKEN")
+    }
     throw new Error(error.message)
   }
   return data as UserRow

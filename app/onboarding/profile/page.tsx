@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Camera } from "lucide-react"
 import { useCurrentAccount } from "@mysten/dapp-kit"
 import { cn } from "@/lib/utils"
 import { AppHeader } from "@/components/app-header"
 import { Button } from "@/components/ui/button"
-import { saveProfile } from "@/lib/users"
+import { isUsernameAvailable, saveProfile } from "@/lib/users"
 
 // ── Constants ─────────────────────────────────────────────────
 const GENRES = [
@@ -62,6 +62,7 @@ export default function ProfilePage() {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<ProfileForm>(DEFAULT_FORM)
   const [saving, setSaving] = useState(false)
+  const [stepError, setStepError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   function toggleGenre(genre: string) {
@@ -83,7 +84,58 @@ export default function ProfilePage() {
     return false
   }
 
+  function getStepError(currentStep: number): string | null {
+    if (currentStep === 1) {
+      if (form.displayName.trim().length === 0)
+        return "Display name is required."
+      if (form.nickname.trim().length === 0) return "Username is required."
+      return null
+    }
+    if (currentStep === 2) {
+      if (form.genres.length === 0) return "Please select at least one genre."
+      if (!form.ageGroup) return "Please select your age group."
+      return null
+    }
+    if (currentStep === 3 && !form.agreePrivacy) {
+      return "You must agree to the required privacy policy."
+    }
+    return null
+  }
+
+  useEffect(() => {
+    setStepError(null)
+  }, [step, form])
+
   async function handleNext() {
+    const validationError = getStepError(step)
+    if (validationError) {
+      setStepError(validationError)
+      return
+    }
+
+    setStepError(null)
+    setSaveError(null)
+
+    if (step === 1) {
+      setSaving(true)
+      try {
+        const available = await isUsernameAvailable(
+          form.nickname,
+          currentAccount?.address
+        )
+        if (!available) {
+          setStepError("Username is already taken. Please choose another one.")
+          return
+        }
+        setStep(2)
+      } catch {
+        setStepError("Failed to validate username. Please try again.")
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     if (step < STEP_COUNT) {
       setStep((s) => s + 1)
       return
@@ -93,12 +145,11 @@ export default function ProfilePage() {
     const address = currentAccount?.address
     if (!address) {
       setSaveError("Wallet not connected. Please reconnect.")
-      router.replace("/onboarding/connect")
+      router.replace("/onboarding")
       return
     }
 
     setSaving(true)
-    setSaveError(null)
     try {
       await saveProfile(address, {
         display_name: form.displayName,
@@ -110,31 +161,37 @@ export default function ProfilePage() {
         agree_privacy: form.agreePrivacy,
         agree_marketing: form.agreeMarketing,
       })
-      router.push("/onboarding/character")
-    } catch {
-      setSaveError("Failed to save profile. Please try again.")
+      router.push("/onboarding/account")
+    } catch (e) {
+      if (e instanceof Error && e.message === "USERNAME_TAKEN") {
+        setSaveError("Username is already taken. Please choose another one.")
+      } else {
+        setSaveError("Failed to save profile. Please try again.")
+      }
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-white dark:bg-grey-900">
+    <div className="space-y-4 pt-6">
       {/* Header */}
       <AppHeader
-        className="px-4 pt-10 pb-4"
         left={
           <button
             onClick={() => (step > 1 ? setStep((s) => s - 1) : router.back())}
-            className="flex size-10 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-300 dark:hover:bg-grey-800"
+            className="flex size-9 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-300 dark:hover:bg-grey-800"
             aria-label="Back"
           >
-            <ChevronLeft size={22} />
+            <ChevronLeft size={20} />
           </button>
         }
         title="Set Up Profile"
-        titleClassName="text-lg"
-        right={<span className="text-sm text-grey-400">{step}/{STEP_COUNT}</span>}
+        right={
+          <span className="text-sm text-grey-400">
+            {step}/{STEP_COUNT}
+          </span>
+        }
       />
 
       {/* Step progress bar */}
@@ -160,15 +217,15 @@ export default function ProfilePage() {
       </div>
 
       {/* Bottom CTA */}
-      <div className="fixed right-0 bottom-0 left-0 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-10 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
-        {saveError && (
-          <p className="mb-3 text-center text-sm text-red-600 dark:text-red-400">
-            {saveError}
+      <div className="fixed right-0 bottom-0 left-0 space-y-1 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-8 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
+        {(stepError ?? saveError) && (
+          <p className="text-center text-xs text-red-600 dark:text-red-400">
+            {stepError ?? saveError}
           </p>
         )}
         <Button
           onClick={handleNext}
-          disabled={!canNext() || saving}
+          disabled={saving}
           size="xl"
           className={cn(
             "w-full",
@@ -177,11 +234,7 @@ export default function ProfilePage() {
               : "bg-grey-300 dark:bg-grey-700"
           )}
         >
-          {saving
-            ? "Saving..."
-            : step < STEP_COUNT
-              ? "Continue"
-              : "Done"}
+          {saving ? "Saving..." : step < STEP_COUNT ? "Continue" : "Done"}
         </Button>
       </div>
     </div>

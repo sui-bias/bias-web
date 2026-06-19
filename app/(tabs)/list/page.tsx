@@ -5,7 +5,9 @@ import { FriendListItem } from "@/components/friend-list-item"
 import { FRIENDS } from "@/lib/mock"
 
 const SORTED_FRIENDS = [...FRIENDS].sort((a, b) =>
-  a.data.name.localeCompare(b.data.name, ["ko", "en"], { sensitivity: "base" })
+  a.data.display_name.localeCompare(b.data.display_name, ["ko", "en"], {
+    sensitivity: "base",
+  })
 )
 
 export default function ListPage() {
@@ -55,7 +57,7 @@ export default function ListPage() {
           {SORTED_FRIENDS.map((friend) => (
             <FriendListItem
               key={friend.data.id}
-              name={friend.data.name}
+              display_name={friend.data.display_name}
               intro={friend.data.intro}
               imageUrl={friend.data.imageUrl}
               kind={friend.kind}
