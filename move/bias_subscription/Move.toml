@@ -1,0 +1,10 @@
+[package]
+name = "bias_subscription"
+edition = "2024.beta"
+# 툴체인이 "2024.beta"를 거부하면 "2024" 로 변경.
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
+
+[addresses]
+bias_subscription = "0x0"
