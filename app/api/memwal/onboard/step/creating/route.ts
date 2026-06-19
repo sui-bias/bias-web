@@ -19,6 +19,47 @@ async function findExistingMemwalAccountId(
   ownerAddress: string,
   packageId: string
 ): Promise<string | null> {
+  const normalizedOwner = ownerAddress.trim().toLowerCase()
+  const createdEventType = `${packageId}::account::AccountCreated`
+  let eventCursor: { txDigest: string; eventSeq: string } | null | undefined =
+    null
+
+  while (true) {
+    const page = await suiClient.queryEvents({
+      query: { MoveEventType: createdEventType },
+      cursor: eventCursor ?? null,
+      limit: 50,
+      order: "descending",
+    })
+
+    for (const event of page.data) {
+      const parsed = event.parsedJson as {
+        owner?: unknown
+        account_id?: unknown
+        accountId?: unknown
+      } | null
+      if (!parsed || typeof parsed !== "object") continue
+
+      const eventOwner =
+        typeof parsed.owner === "string"
+          ? parsed.owner.trim().toLowerCase()
+          : ""
+      const eventAccountIdRaw =
+        typeof parsed.account_id === "string"
+          ? parsed.account_id.trim()
+          : typeof parsed.accountId === "string"
+            ? parsed.accountId.trim()
+            : ""
+
+      if (eventOwner === normalizedOwner && eventAccountIdRaw) {
+        return eventAccountIdRaw
+      }
+    }
+
+    if (!page.hasNextPage) break
+    eventCursor = page.nextCursor
+  }
+
   const structType = `${packageId}::account::MemWalAccount`
   let cursor: string | null | undefined = null
 

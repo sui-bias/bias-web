@@ -5,6 +5,15 @@
 import { supabase } from "./supabase"
 import type { Affinity, Character, CharacterDraft, Visibility } from "./types"
 
+export interface OfficialCharacterCard {
+  id: string
+  display_name: string
+  intro: string
+  imageUrl?: string
+  genre?: string
+  chatCharacterId?: string
+}
+
 type CharacterRow = {
   id: string
   display_name: string
@@ -155,4 +164,44 @@ export async function updateCharacter(
 export async function deleteCharacter(id: string): Promise<void> {
   const { error } = await supabase.from("characters").delete().eq("id", id)
   if (error) throw new Error(error.message)
+  
+  
+  // 공식 
+  function toOfficialCharacterCard(row: CharacterRow): OfficialCharacterCard {
+  const genre =
+    Array.isArray(row.genre) && row.genre.length > 0
+      ? row.genre[0]
+      : typeof row.genre === "string" && row.genre.trim().length > 0
+        ? row.genre
+        : undefined
+
+  const chatCharacterId =
+    row.chat_character_id?.trim() || row.chatCharacterId?.trim() || undefined
+  const imageUrl = row.image_url ?? row.imageUrl ?? undefined
+
+  return {
+    id: String(row.id),
+    display_name: row.display_name,
+    intro: row.intro,
+    imageUrl,
+    genre,
+    chatCharacterId,
+  }
+}
+
+export async function getOfficialCharacters(): Promise<
+  OfficialCharacterCard[]
+> {
+  const { data, error } = await supabase
+    .from("characters")
+    .select("*")
+    .eq("is_official", true)
+    .order("id", { ascending: true })
+
+  if (error || !data) {
+    console.error("[characters] getOfficialCharacters error:", error?.message)
+    return []
+  }
+
+  return (data as CharacterRow[]).map(toOfficialCharacterCard)
 }

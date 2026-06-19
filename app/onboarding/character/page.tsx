@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, Sparkles } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { cn } from "@/lib/utils"
-import { PROVIDED_CHARACTERS } from "@/lib/mock"
 import { Button } from "@/components/ui/button"
+import {
+  getOfficialCharacters,
+  type OfficialCharacterCard,
+} from "@/lib/characters"
 
 const CARD_COLORS = [
   "from-violet-400 to-purple-600",
@@ -19,9 +22,36 @@ const CARD_COLORS = [
 
 export default function CharacterGatePage() {
   const router = useRouter()
+  const [characters, setCharacters] = useState<OfficialCharacterCard[]>([])
+  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
 
-  const selectedChar = PROVIDED_CHARACTERS.find((c) => c.id === selected)
+  const selectedChar = characters.find((c) => c.id === selected)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      setLoading(true)
+      const next = await getOfficialCharacters()
+
+      if (!alive) return
+      setCharacters(next)
+      setLoading(false)
+    })()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (
+      selected &&
+      !characters.some((character) => character.id === selected)
+    ) {
+      setSelected(null)
+    }
+  }, [characters, selected])
 
   function handleStart() {
     if (!selectedChar?.chatCharacterId) return
@@ -69,7 +99,7 @@ export default function CharacterGatePage() {
 
       {/* Character grid */}
       <div className="grid grid-cols-2 gap-3 px-4 py-4 pb-36">
-        {PROVIDED_CHARACTERS.map((char, index) => {
+        {characters.map((char, index) => {
           const isSelected = selected === char.id
           const chatReady = Boolean(char.chatCharacterId)
           return (
@@ -139,6 +169,11 @@ export default function CharacterGatePage() {
             </button>
           )
         })}
+        {!loading && characters.length === 0 ? (
+          <p className="col-span-2 rounded-xl border border-dashed border-grey-300 px-4 py-8 text-center text-sm text-grey-500 dark:border-grey-700 dark:text-grey-400">
+            Failed to load official characters.
+          </p>
+        ) : null}
       </div>
 
       {/* Bottom CTA */}
