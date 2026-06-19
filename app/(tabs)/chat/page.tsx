@@ -38,12 +38,13 @@ export default function ChatPage() {
             >
               <Search size={20} />
             </button>
-            <button
-              aria-label="Add friend"
+            <Link
+              href="/rooms/new"
+              aria-label="그룹 방 만들기"
               className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
             >
               <Plus size={20} />
-            </button>
+            </Link>
             <Link
               href="/settings"
               aria-label="Open settings"
