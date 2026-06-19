@@ -13,7 +13,7 @@ import {
   createAccount,
 } from "@mysten-incubation/memwal/account"
 import { AppHeader } from "@/components/app-header"
-import { Check, ChevronLeft, Copy, Key, Loader2 } from "lucide-react"
+import { Check, ChevronLeft, Copy, Key, Loader2, Pin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { MemwalStep } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -42,6 +42,12 @@ type ConfigResponse = {
   network: "mainnet" | "testnet"
 }
 
+type DelegateKeyEntry = {
+  fields?: {
+    public_key?: unknown
+  }
+}
+
 export default function AccountPage() {
   const router = useRouter()
   const account = useCurrentAccount()
@@ -57,6 +63,10 @@ export default function AccountPage() {
   const [loadingStatus, setLoadingStatus] = useState(false)
 
   const busy = phase !== "idle"
+
+  useEffect(() => {
+    console.log(remoteStep)
+  }, [remoteStep])
 
   async function fetchStatus(address: string): Promise<StatusResponse> {
     const res = await fetch(
@@ -113,6 +123,46 @@ export default function AccountPage() {
         `단계 확인 실패: expected=${expected}, got=${status.step}`
       )
     }
+  }
+
+  function normalizeHex(hex: string): string {
+    const trimmed = hex.trim().toLowerCase()
+    return trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed
+  }
+
+  function bytesToHex(bytes: number[]): string {
+    return bytes.map((b) => b.toString(16).padStart(2, "0")).join("")
+  }
+
+  async function hasDelegateKey(
+    memwalAccountId: string,
+    targetPublicKeyHex: string
+  ): Promise<boolean> {
+    const obj = await suiClient.getObject({
+      id: memwalAccountId,
+      options: { showContent: true },
+    })
+
+    const content = obj.data?.content
+    if (!content || content.dataType !== "moveObject") return false
+
+    const fields =
+      "fields" in content
+        ? (content.fields as { delegate_keys?: unknown })
+        : undefined
+    const delegateKeys = Array.isArray(fields?.delegate_keys)
+      ? (fields.delegate_keys as DelegateKeyEntry[])
+      : []
+
+    const normalizedTarget = normalizeHex(targetPublicKeyHex)
+
+    return delegateKeys.some((entry) => {
+      const raw = entry?.fields?.public_key
+      if (!Array.isArray(raw)) return false
+      if (!raw.every((v) => typeof v === "number")) return false
+      const keyHex = bytesToHex(raw)
+      return normalizeHex(keyHex) === normalizedTarget
+    })
   }
 
   useEffect(() => {
@@ -242,15 +292,21 @@ export default function AccountPage() {
       await ensureStep(account.address, "delegate_memwal")
 
       setPhase("delegating_memwal")
-      await addDelegateKey({
-        packageId: config.packageId,
-        accountId: memwalAccountId,
-        publicKey: config.serverDelegatePubKey,
-        label: "bias-server-memwal",
-        walletSigner,
-        suiClient,
-        suiNetwork: config.network ?? "mainnet",
-      })
+      const hasMemwalDelegate = await hasDelegateKey(
+        memwalAccountId,
+        config.serverDelegatePubKey
+      )
+      if (!hasMemwalDelegate) {
+        await addDelegateKey({
+          packageId: config.packageId,
+          accountId: memwalAccountId,
+          publicKey: config.serverDelegatePubKey,
+          label: "bias-server-memwal",
+          walletSigner,
+          suiClient,
+          suiNetwork: config.network ?? "mainnet",
+        })
+      }
 
       const delegateSealState = await postStep(
         "/api/memwal/onboard/step/delegate-seal",
@@ -260,15 +316,21 @@ export default function AccountPage() {
       await ensureStep(account.address, "delegate_seal")
 
       setPhase("delegating_seal")
-      await addDelegateKey({
-        packageId: config.packageId,
-        accountId: memwalAccountId,
-        publicKey: config.serverSealDelegatePubKey,
-        label: "bias-server-seal",
-        walletSigner,
-        suiClient,
-        suiNetwork: config.network ?? "mainnet",
-      })
+      const hasSealDelegate = await hasDelegateKey(
+        memwalAccountId,
+        config.serverSealDelegatePubKey
+      )
+      if (!hasSealDelegate) {
+        await addDelegateKey({
+          packageId: config.packageId,
+          accountId: memwalAccountId,
+          publicKey: config.serverSealDelegatePubKey,
+          label: "bias-server-seal",
+          walletSigner,
+          suiClient,
+          suiNetwork: config.network ?? "mainnet",
+        })
+      }
 
       const doneState = await postStep("/api/memwal/onboard/step/done", {
         ...proof,
@@ -356,9 +418,13 @@ export default function AccountPage() {
       <div className="flex-1 overflow-y-auto px-6 pb-36">
         <div className="space-y-6">
           <div className="rounded-xl bg-brand/10 p-4">
-            <p className="flex gap-1 text-sm text-brand">
-              After creating your MemWal account, please agree to delegate your
-              key to MyBias to proceed.
+            <Pin size={14} className="text-brand" />
+            <p className="text-sm text-brand">
+              By continuing, you agree to{" "}
+              <span className="font-semibold">
+                create a MemWal account and grant delegate keys
+              </span>{" "}
+              to MyBias.
             </p>
           </div>
 
@@ -368,24 +434,30 @@ export default function AccountPage() {
                 ➊ Create Memwal Account
               </p>
               <p className="text-sm text-grey-600 dark:text-grey-300">
-                {remoteStep === "creating" || phase === "creating"
-                  ? "Creating ..."
-                  : ""}
+                {remoteStep === "creating" || phase === "creating" ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 size={14} className="animate-spin" />
+                    Creating ...
+                  </span>
+                ) : (
+                  ""
+                )}
                 {accountId && (
                   <span className="flex items-center gap-1 text-brand">
-                    <Check size={20} />
-                    Created
+                    <Check size={14} />
                     <span className="inline-flex items-center gap-2">
-                      <span>
-                        {accountId.slice(0, 5)}...{accountId.slice(-4)}
+                      Created
+                      <span className="flex items-center gap-1 rounded-md bg-brand/10 px-1.5 py-1">
+                        accountId: {accountId.slice(0, 5)}...
+                        {accountId.slice(-4)}
+                        <Copy
+                          size={12}
+                          className="ml-1 cursor-pointer"
+                          onClick={() => {
+                            navigator.clipboard.writeText(accountId)
+                          }}
+                        />
                       </span>
-                      <Copy
-                        size={14}
-                        className="ml-1 cursor-pointer"
-                        onClick={() => {
-                          navigator.clipboard.writeText(accountId)
-                        }}
-                      />
                     </span>
                   </span>
                 )}
@@ -399,7 +471,7 @@ export default function AccountPage() {
                 {remoteStep === "delegate_memwal" ||
                 phase === "delegating_memwal" ? (
                   <span className="flex items-center gap-1">
-                    <Loader2 size={20} className="animate-spin" />
+                    <Loader2 size={14} className="animate-spin" />
                     Delegating ...
                   </span>
                 ) : (
@@ -407,7 +479,7 @@ export default function AccountPage() {
                 )}
                 {delegateMemwalDone && (
                   <span className="flex items-center gap-1 text-brand">
-                    <Check size={20} />
+                    <Check size={14} />
                     Delegated
                   </span>
                 )}
@@ -421,7 +493,7 @@ export default function AccountPage() {
                 {remoteStep === "delegate_seal" ||
                 phase === "delegating_seal" ? (
                   <span className="flex items-center gap-1">
-                    <Loader2 size={20} className="animate-spin" />
+                    <Loader2 size={14} className="animate-spin" />
                     Delegating ...
                   </span>
                 ) : (
@@ -429,7 +501,7 @@ export default function AccountPage() {
                 )}
                 {delegateSealDone && (
                   <span className="flex items-center gap-1 text-brand">
-                    <Check size={20} />
+                    <Check size={14} />
                     Delegated
                   </span>
                 )}
@@ -459,7 +531,7 @@ export default function AccountPage() {
             size="xl"
             className="w-full"
           >
-            Create Memwal Account
+            Continue
           </Button>
         )}
       </div>
