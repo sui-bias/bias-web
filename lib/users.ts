@@ -6,6 +6,7 @@ import type { MemwalStep } from "./types"
 export interface UserRow {
   address: string
   display_name: string
+  image_url?: string | null
   username: string
   genres: string[]
   language: "en" | "kr"
