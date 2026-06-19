@@ -5,7 +5,9 @@ import Link from "next/link"
 import { ArrowLeft, SendHorizonal } from "lucide-react"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { getCharacter } from "@/lib/mock"
+import { addFriend, isFriend } from "@/lib/friends"
 import { addMessage, getRoom, listMessages } from "@/lib/rooms"
+import { getUser, type UserRow } from "@/lib/users"
 import type { Message, Room, SenderRef } from "@/lib/types"
 
 function senderName(sender: SenderRef, myAddress: string | null): string {
@@ -29,6 +31,9 @@ export default function RoomPage({
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
+  const [sessionId, setSessionId] = useState<number | null>(null)
+  const [otherUser, setOtherUser] = useState<UserRow | null>(null)
+  const [otherFriend, setOtherFriend] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const refresh = useCallback(async () => {
@@ -48,6 +53,42 @@ export default function RoomPage({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // direct 유저-유저 방이면 상대 유저 정보 + 친구 여부 로드(친구추가/차단 박스용)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!room || !address) return
+      const users = room.participants.filter((p) => p.type === "user")
+      const hasChar = room.participants.some((p) => p.type === "character")
+      const other = users.find((p) => p.type === "user" && p.address !== address)
+      if (room.type === "direct" && !hasChar && other?.type === "user") {
+        const [u, f] = await Promise.all([
+          getUser(other.address),
+          isFriend(address, other.address),
+        ])
+        if (!cancelled) {
+          setOtherUser(u)
+          setOtherFriend(f)
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [room, address])
+
+  async function handleAddFriend() {
+    if (!address || !otherUser) return
+    await addFriend(address, otherUser.address)
+    setOtherFriend(true)
+  }
+
+  function handleBlock() {
+    // TODO: 차단 테이블/정책 필요. 현재는 안내만.
+    alert("차단 기능은 준비 중입니다.")
+  }
+
   async function handleSend() {
     const text = input.trim()
     if (!text || !address || sending) return
@@ -56,6 +97,45 @@ export default function RoomPage({
     try {
       await addMessage(id, { type: "user", address }, text)
       await refresh()
+
+      // direct 방 + 채팅 가능 캐릭터 → bias-chat 으로 응답 받아 저장
+      const charP = room?.participants.find((p) => p.type === "character")
+      const character =
+        charP?.type === "character" ? getCharacter(charP.characterId) : undefined
+      if (room?.type === "direct" && character?.chatCharacterId) {
+        let sid = sessionId
+        if (sid == null) {
+          const sres = await fetch("/api/chat/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ characterId: character.chatCharacterId }),
+          })
+          const sjson = await sres.json()
+          if (!sres.ok) throw new Error(sjson?.error ?? "session failed")
+          sid = sjson.sessionId as number
+          setSessionId(sid)
+        }
+        const mres = await fetch("/api/chat/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: sid, text }),
+        })
+        const mjson = await mres.json()
+        if (mres.ok && Array.isArray(mjson.bubbles) && charP?.type === "character") {
+          const turnId = crypto.randomUUID()
+          for (const bubble of mjson.bubbles as string[]) {
+            await addMessage(
+              id,
+              { type: "character", characterId: charP.characterId },
+              bubble,
+              turnId
+            )
+          }
+          await refresh()
+        }
+      }
+    } catch {
+      // bias-chat 미연결(로컬 5001 없음) 등 — 사용자 메시지는 이미 저장됨
     } finally {
       setSending(false)
     }
@@ -98,20 +178,48 @@ export default function RoomPage({
         </Link>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-grey-900 dark:text-white">
-            {room.name}
+            {otherUser ? otherUser.display_name : room.name}
           </p>
           <p className="truncate text-xs text-grey-500 dark:text-grey-400">
-            참여자 {room.participants.length} · 캐릭터{" "}
-            {characters
-              .map((c) =>
-                c.type === "character"
-                  ? (getCharacter(c.characterId)?.display_name ?? "?")
-                  : ""
-              )
-              .join(", ") || "없음"}
+            {otherUser
+              ? `@${otherUser.username}`
+              : `참여자 ${room.participants.length} · 캐릭터 ${
+                  characters
+                    .map((c) =>
+                      c.type === "character"
+                        ? (getCharacter(c.characterId)?.display_name ?? "?")
+                        : ""
+                    )
+                    .join(", ") || "없음"
+                }`}
           </p>
         </div>
       </header>
+
+      {/* 유저-유저 방: 아직 친구 아니면 친구추가/차단 박스 */}
+      {otherUser && !otherFriend ? (
+        <div className="flex items-center justify-between gap-3 border-b border-grey-200 bg-grey-50 px-4 py-2.5 dark:border-grey-800 dark:bg-grey-800/50">
+          <p className="min-w-0 truncate text-xs text-grey-600 dark:text-grey-300">
+            {otherUser.display_name}님과의 새 대화예요.
+          </p>
+          <div className="flex shrink-0 gap-1.5">
+            <button
+              type="button"
+              onClick={handleAddFriend}
+              className="rounded-lg bg-brand px-2.5 py-1 text-xs font-semibold text-white"
+            >
+              친구 추가
+            </button>
+            <button
+              type="button"
+              onClick={handleBlock}
+              className="rounded-lg border border-grey-300 px-2.5 py-1 text-xs font-semibold text-grey-600 dark:border-grey-600 dark:text-grey-300"
+            >
+              차단
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* 메시지 */}
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">

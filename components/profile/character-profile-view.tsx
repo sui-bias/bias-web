@@ -1,7 +1,8 @@
 import Link from "next/link"
-import { MessageCircle, Pencil, UserPlus } from "lucide-react"
+import { Pencil, UserPlus } from "lucide-react"
 import { visibilityLabel, type Character } from "@/lib/types"
 import { ProfileActionButton, ProfileHero } from "./profile-hero"
+import { StartChatButton } from "./start-chat-button"
 
 // 캐릭터 프로필 = 유저 프로필 레이아웃 + '친구 정보' 섹션.
 // hidden / bannedTopics 같은 내부 설정은 노출하지 않는다.
@@ -30,16 +31,11 @@ export function CharacterProfileView({
         }
         actions={
           <>
-            {/* chatCharacterId 있으면 실제 1:1 방으로, 없으면 준비중 */}
-            <ProfileActionButton
-              icon={MessageCircle}
-              label={character.chatCharacterId ? "1:1 채팅" : "준비중"}
-              href={
-                character.chatCharacterId
-                  ? `/chat/${character.chatCharacterId}`
-                  : undefined
-              }
-              disabled={!character.chatCharacterId}
+            {/* 클릭 시 나+캐릭터 direct 방을 만들고 /rooms/{id} 로 이동 */}
+            <StartChatButton
+              characterId={character.id}
+              characterName={character.display_name}
+              chatReady={Boolean(character.chatCharacterId)}
             />
             {/* TODO: 그룹 기능(M5) 연동 전까지 비활성 */}
             <ProfileActionButton icon={UserPlus} label="그룹에 추가" disabled />

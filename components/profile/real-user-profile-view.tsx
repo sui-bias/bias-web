@@ -1,19 +1,23 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { MessageCircle, UserPlus, UserX } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { MessageCircle, UserCheck, UserPlus, UserX } from "lucide-react"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { addFriend, isFriend } from "@/lib/friends"
+import { getOrCreateDirectUserRoom } from "@/lib/rooms"
 import { getUser, type UserRow } from "@/lib/users"
 import { ProfileActionButton, ProfileHero } from "./profile-hero"
 
-// 실제 사람 유저 프로필 (Supabase users). 친구 추가/1:1 채팅 토글.
+// 실제 사람 유저 프로필 (Supabase users). 1:1 채팅(유저-유저 방) + 친구 추가(일방향).
 export function RealUserProfileView({ address }: { address: string }) {
+  const router = useRouter()
   const { address: myAddress } = useCurrentUser()
   const [user, setUser] = useState<UserRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [friend, setFriend] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [chatBusy, setChatBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
   const isMe = myAddress === address
@@ -50,6 +54,26 @@ export function RealUserProfileView({ address }: { address: string }) {
     }
   }
 
+  async function startChat() {
+    if (!myAddress) {
+      setNotice("1:1 채팅은 지갑 연결 후 가능합니다.")
+      return
+    }
+    if (!user) return
+    setChatBusy(true)
+    try {
+      const roomId = await getOrCreateDirectUserRoom(
+        myAddress,
+        address,
+        user.display_name
+      )
+      router.push(`/rooms/${roomId}`)
+    } catch {
+      setChatBusy(false)
+      setNotice("채팅방을 여는 데 실패했어요.")
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-svh items-center justify-center">
@@ -77,21 +101,24 @@ export function RealUserProfileView({ address }: { address: string }) {
         actions={
           isMe ? (
             <ProfileActionButton icon={UserX} label="내 프로필" disabled />
-          ) : friend ? (
-            <ProfileActionButton
-              icon={MessageCircle}
-              label="1:1 채팅"
-              primary
-              // 유저 간 채팅 백엔드 미구현 → 준비중 안내
-              onClick={() => setNotice("유저 간 1:1 채팅은 준비 중입니다.")}
-            />
           ) : (
-            <ProfileActionButton
-              icon={UserPlus}
-              label={adding ? "추가 중…" : "친구 추가"}
-              primary
-              onClick={handleAdd}
-            />
+            <>
+              <ProfileActionButton
+                icon={MessageCircle}
+                label={chatBusy ? "여는 중…" : "1:1 채팅"}
+                primary
+                onClick={startChat}
+              />
+              {friend ? (
+                <ProfileActionButton icon={UserCheck} label="친구" disabled />
+              ) : (
+                <ProfileActionButton
+                  icon={UserPlus}
+                  label={adding ? "추가 중…" : "친구 추가"}
+                  onClick={handleAdd}
+                />
+              )}
+            </>
           )
         }
       />

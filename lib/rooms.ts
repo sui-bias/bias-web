@@ -70,6 +70,105 @@ export async function createRoom(input: {
   return roomId
 }
 
+/** 나와 캐릭터의 1:1(direct) 방을 찾고, 없으면 생성. roomId 반환. */
+export async function getOrCreateDirectRoom(
+  myAddress: string,
+  characterId: string,
+  roomName: string
+): Promise<string> {
+  // 내가 속한 방들
+  const { data: myLinks } = await supabase
+    .from("room_members")
+    .select("room_id")
+    .eq("member_type", "user")
+    .eq("member_id", myAddress)
+  const myRoomIds = [
+    ...new Set((myLinks ?? []).map((l) => (l as { room_id: string }).room_id)),
+  ]
+
+  if (myRoomIds.length) {
+    // 그 중 이 캐릭터가 들어있는 방
+    const { data: charLinks } = await supabase
+      .from("room_members")
+      .select("room_id")
+      .eq("member_type", "character")
+      .eq("member_id", characterId)
+      .in("room_id", myRoomIds)
+    const candidateIds = (charLinks ?? []).map(
+      (l) => (l as { room_id: string }).room_id
+    )
+    if (candidateIds.length) {
+      const { data: directRooms } = await supabase
+        .from("rooms")
+        .select("id")
+        .eq("type", "direct")
+        .in("id", candidateIds)
+        .limit(1)
+      const existing = (directRooms ?? [])[0] as { id: string } | undefined
+      if (existing) return existing.id
+    }
+  }
+
+  return createRoom({
+    type: "direct",
+    name: roomName,
+    ownerAddress: myAddress,
+    participants: [
+      { type: "user", address: myAddress },
+      { type: "character", characterId, ownerAddress: myAddress },
+    ],
+  })
+}
+
+/** 나와 다른 유저의 1:1(direct) 방을 찾고, 없으면 생성. 양쪽 모두 참여자로 들어가
+ * 상대방 방 목록에도 나타난다(일방향 친구와 별개). */
+export async function getOrCreateDirectUserRoom(
+  myAddress: string,
+  otherAddress: string,
+  roomName: string
+): Promise<string> {
+  const { data: myLinks } = await supabase
+    .from("room_members")
+    .select("room_id")
+    .eq("member_type", "user")
+    .eq("member_id", myAddress)
+  const myRoomIds = [
+    ...new Set((myLinks ?? []).map((l) => (l as { room_id: string }).room_id)),
+  ]
+
+  if (myRoomIds.length) {
+    const { data: otherLinks } = await supabase
+      .from("room_members")
+      .select("room_id")
+      .eq("member_type", "user")
+      .eq("member_id", otherAddress)
+      .in("room_id", myRoomIds)
+    const candidateIds = (otherLinks ?? []).map(
+      (l) => (l as { room_id: string }).room_id
+    )
+    if (candidateIds.length) {
+      const { data: directRooms } = await supabase
+        .from("rooms")
+        .select("id")
+        .eq("type", "direct")
+        .in("id", candidateIds)
+        .limit(1)
+      const existing = (directRooms ?? [])[0] as { id: string } | undefined
+      if (existing) return existing.id
+    }
+  }
+
+  return createRoom({
+    type: "direct",
+    name: roomName,
+    ownerAddress: myAddress,
+    participants: [
+      { type: "user", address: myAddress },
+      { type: "user", address: otherAddress },
+    ],
+  })
+}
+
 /** 방 단건 + 참여자. */
 export async function getRoom(id: string): Promise<Room | null> {
   const { data: room, error } = await supabase
