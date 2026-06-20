@@ -1,9 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Search } from "lucide-react"
-import { MOCK_CHARACTERS } from "@/lib/mock"
+import { listPublicCharacters } from "@/lib/characters"
+import type { Character } from "@/lib/types"
 
 const TILE_COLORS = [
   "from-violet-300 to-fuchsia-500",
@@ -12,24 +13,34 @@ const TILE_COLORS = [
   "from-amber-300 to-orange-500",
 ]
 
-// 탐색 탭: 다른 유저들이 만든 공개 캐릭터를 둘러본다.
-// TODO(api): 현재는 mock 공개 캐릭터. 추후 Supabase 의 공개 user 캐릭터로 교체.
-const PUBLIC_CHARACTERS = MOCK_CHARACTERS.filter(
-  (c) => c.visibility === "public"
-)
-
+// 탐색 탭: 모두가 만든 공개 캐릭터를 둘러본다 (Supabase characters, visibility=public).
 export default function ExplorePage() {
   const [keyword, setKeyword] = useState("")
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    listPublicCharacters().then((rows) => {
+      if (!cancelled) {
+        setCharacters(rows)
+        setLoading(false)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const results = useMemo(() => {
     const q = keyword.trim().toLowerCase()
-    if (!q) return PUBLIC_CHARACTERS
-    return PUBLIC_CHARACTERS.filter((c) =>
+    if (!q) return characters
+    return characters.filter((c) =>
       `${c.display_name} ${c.intro} ${(c.genre ?? []).join(" ")}`
         .toLowerCase()
         .includes(q)
     )
-  }, [keyword])
+  }, [keyword, characters])
 
   return (
     <div className="space-y-4 pt-4 pb-6">
@@ -54,7 +65,11 @@ export default function ExplorePage() {
       <section className="px-1">
         {results.length === 0 ? (
           <div className="px-3 py-10 text-center text-sm text-grey-500 dark:text-grey-400">
-            검색 결과가 없습니다.
+            {loading
+              ? "불러오는 중…"
+              : keyword
+                ? "검색 결과가 없습니다."
+                : "아직 공개된 캐릭터가 없어요."}
           </div>
         ) : (
           <ul className="grid grid-cols-3 gap-1">

@@ -75,7 +75,7 @@ export default function FriendSearchPage() {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="닉네임 또는 지갑 주소로 검색"
+            placeholder="아이디 또는 지갑 주소로 검색"
             className="h-11 w-full rounded-xl border border-grey-200 bg-grey-100 pr-3 pl-10 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
           />
         </form>

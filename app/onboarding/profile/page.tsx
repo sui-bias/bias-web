@@ -94,8 +94,8 @@ export default function ProfilePage() {
   function getStepError(currentStep: number): string | null {
     if (currentStep === 1) {
       if (form.displayName.trim().length === 0)
-        return "Display name is required."
-      if (form.nickname.trim().length === 0) return "Username is required."
+        return "Nickname is required."
+      if (form.nickname.trim().length === 0) return "ID is required."
       return null
     }
     if (currentStep === 2) {
@@ -178,7 +178,7 @@ export default function ProfilePage() {
           currentAccount?.address
         )
         if (!available) {
-          setStepError("Username is already taken. Please choose another one.")
+          setStepError("ID is already taken. Please choose another one.")
           return
         }
         setStep(2)
@@ -224,7 +224,7 @@ export default function ProfilePage() {
       router.push("/onboarding/account")
     } catch (e) {
       if (e instanceof Error && e.message === "USERNAME_TAKEN") {
-        setSaveError("Username is already taken. Please choose another one.")
+        setSaveError("ID is already taken. Please choose another one.")
       } else {
         setSaveError("Failed to save profile. Please try again.")
       }
@@ -363,17 +363,17 @@ function Step1({
         </div>
       </div>
 
-      {/* Display name */}
+      {/* Nickname (display_name) */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-grey-700 dark:text-grey-300">
-          Display name <span className="text-brand">*</span>
+          Nickname <span className="text-brand">*</span>
         </label>
         <input
           value={form.displayName}
           onChange={(e) =>
             setForm((f) => ({ ...f, displayName: e.target.value }))
           }
-          placeholder="Name visible to others"
+          placeholder="Nickname shown to others"
           maxLength={20}
           className={cn(
             "h-12 w-full rounded-xl border border-grey-200 bg-grey-50 px-4 text-sm text-grey-900 placeholder-grey-400 transition-colors outline-none",
@@ -386,10 +386,10 @@ function Step1({
         </p>
       </div>
 
-      {/* Nickname */}
+      {/* ID (username) */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-grey-700 dark:text-grey-300">
-          Username <span className="text-brand">*</span>
+          ID <span className="text-brand">*</span>
         </label>
         <div
           className={cn(

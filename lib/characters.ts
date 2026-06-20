@@ -115,6 +115,19 @@ export async function listCharacters(): Promise<Character[]> {
   return ((data as CharacterRow[]) ?? []).map(rowToCharacter)
 }
 
+/** 모두가 만든 공개 캐릭터 (탐색용). */
+export async function listPublicCharacters(): Promise<Character[]> {
+  const { data, error } = await supabase
+    .from("characters")
+    .select("*")
+    .eq("visibility", "public")
+  if (error) {
+    console.error("[characters] listPublic error:", error.message)
+    return []
+  }
+  return ((data as CharacterRow[]) ?? []).map(rowToCharacter)
+}
+
 /** 내가 만든 캐릭터. */
 export async function listMyCharacters(ownerId: string): Promise<Character[]> {
   const { data, error } = await supabase
