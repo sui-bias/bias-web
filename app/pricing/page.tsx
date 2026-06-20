@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ChevronLeft, Loader2, Check, Store } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
-import { useCurrentPlan } from "@/hooks/use-current-plan"
+import { usePlan } from "@/components/plan-provider"
 import { usePassActions } from "@/hooks/use-pass-actions"
 import { PaidPlan, PAID_PLANS, PLANS } from "@/lib/plans"
 import {
@@ -35,7 +35,7 @@ type ActionKind = "mint" | "renew" | "upgrade" | "lower" | "current"
 export default function PricingPage() {
   const router = useRouter()
   const { account, execute } = usePassActions()
-  const { plan, passes, primary, refresh } = useCurrentPlan()
+  const { plan, passes, primary, refresh } = usePlan()
   const [busy, setBusy] = useState<PaidPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -136,11 +136,17 @@ export default function PricingPage() {
       <section className="space-y-3 px-4">
         {PAID_PLANS.map((p) => {
           const def = PLANS[p]
+          const comingSoon = !def.available // pro/max = 추후 공개
           const kind = resolveAction(p)
           const isBusy = busy === p
-          const disabled = kind === "lower" || !SubscriptionConfigured || !!busy
-          const label =
-            kind === "renew"
+          const disabled =
+            comingSoon ||
+            kind === "lower" ||
+            !SubscriptionConfigured ||
+            !!busy
+          const label = comingSoon
+            ? "추후 공개"
+            : kind === "renew"
               ? "갱신"
               : kind === "upgrade"
                 ? "업그레이드"
@@ -154,6 +160,7 @@ export default function PricingPage() {
               key={p}
               className={cn(
                 "rounded-2xl border p-4",
+                comingSoon && "opacity-60",
                 highlight
                   ? "border-brand bg-brand/5"
                   : "border-grey-200 dark:border-grey-800"
@@ -167,6 +174,11 @@ export default function PricingPage() {
                   {highlight && (
                     <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
                       이용 중
+                    </span>
+                  )}
+                  {comingSoon && (
+                    <span className="rounded-full bg-grey-200 px-2 py-0.5 text-[10px] font-semibold text-grey-500 dark:bg-grey-700 dark:text-grey-300">
+                      추후 공개
                     </span>
                   )}
                 </div>

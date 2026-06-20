@@ -8,6 +8,7 @@ import {
 } from "@mysten/dapp-kit"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc"
+import { PlanProvider } from "@/components/plan-provider"
 import "@mysten/dapp-kit/dist/index.css"
 
 // Bias는 mainnet에 배포한다. 개발 중에는 NEXT_PUBLIC_SUI_NETWORK=testnet 으로 전환 가능.
@@ -32,7 +33,7 @@ export function SuiProvider({ children }: { children: ReactNode }) {
           확장프로그램 유저는 wallet-standard로 자동 감지된다.
         */}
         <WalletProvider autoConnect slushWallet={{ name: "Bias" }}>
-          {children}
+          <PlanProvider>{children}</PlanProvider>
         </WalletProvider>
       </SuiClientProvider>
     </QueryClientProvider>

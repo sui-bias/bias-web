@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { useCurrentUser } from "@/hooks/use-current-user"
-import { useCurrentPlan } from "@/hooks/use-current-plan"
+import { usePlan } from "@/components/plan-provider"
 import { PLANS } from "@/lib/plans"
 
 function fmtDate(ms: number) {
@@ -39,7 +39,7 @@ export default function MyPage() {
   const { mutate: disconnect } = useDisconnectWallet()
   const { address, user, loading } = useCurrentUser()
   // plan 의 진짜 소스는 온체인 NFT 소유(DB는 캐시라 양도 시 stale).
-  const { plan, primary } = useCurrentPlan()
+  const { plan, primary } = usePlan()
   const isPlus = plan !== "free"
 
   // 진짜 로그아웃: 지갑 연결을 끊어 autoConnect 캐시를 비운 뒤 온보딩으로.

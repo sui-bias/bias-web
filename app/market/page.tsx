@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSuiClient } from "@mysten/dapp-kit"
 import { ChevronLeft, Loader2, Tag, ShoppingCart } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
-import { useCurrentPlan } from "@/hooks/use-current-plan"
+import { usePlan } from "@/components/plan-provider"
 import { usePassActions } from "@/hooks/use-pass-actions"
 import { PLANS } from "@/lib/plans"
 import {
@@ -39,7 +39,7 @@ export default function MarketPage() {
   const router = useRouter()
   const client = useSuiClient()
   const { account, execute } = usePassActions()
-  const { passes, refresh: refreshPlan } = useCurrentPlan()
+  const { passes, refresh: refreshPlan } = usePlan()
 
   const [listings, setListings] = useState<MarketListing[]>([])
   const [loading, setLoading] = useState(true)
