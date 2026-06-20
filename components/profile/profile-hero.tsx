@@ -14,7 +14,7 @@ type ProfileHeroProps = {
   actions: React.ReactNode
 }
 
-// 카카오톡 구버전 친구 프로필 차용: 풀블리드 이미지 + 하단 이름/상태메시지 + 액션 바.
+// 카카오톡 구버전 친구 Profile 차용: 풀블리드 이미지 + 하단 이름/상태Messages + 액션 바.
 export function ProfileHero({
   name,
   intro,
@@ -36,7 +36,7 @@ export function ProfileHero({
 
         <Link
           href={backHref}
-          aria-label="뒤로 가기"
+          aria-label="Back"
           className="absolute top-5 left-4 inline-flex size-9 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur transition-colors hover:bg-black/50"
         >
           <ArrowLeft size={20} />

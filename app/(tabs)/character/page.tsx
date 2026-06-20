@@ -49,7 +49,7 @@ export default function CharacterPage() {
           <div className="flex items-center gap-1">
             <Link href="/character/create">
               <button
-                aria-label="새 캐릭터 만들기"
+                aria-label="Create a character"
                 className="flex size-9 items-center justify-center rounded-full bg-brand text-white transition-colors"
               >
                 <Plus size={20} />
@@ -62,8 +62,8 @@ export default function CharacterPage() {
       {!loading && characters.length === 0 ? (
         <p className="px-4 pt-4 text-sm text-grey-500 dark:text-grey-400">
           {address
-            ? "아직 만든 캐릭터가 없어요. + 로 첫 캐릭터를 만들어보세요."
-            : "지갑을 연결하면 내가 만든 캐릭터가 보여요."}
+            ? "No characters yet. Tap + to create your first."
+            : "Connect your wallet to see your characters."}
         </p>
       ) : null}
 
@@ -108,7 +108,7 @@ export default function CharacterPage() {
           </div>
           <p className="mt-3 text-sm font-semibold text-brand">Create</p>
           <p className="mt-1 text-xs text-grey-600 dark:text-grey-300">
-            새 캐릭터 만들기
+            Create a character
           </p>
         </Link>
       </section>

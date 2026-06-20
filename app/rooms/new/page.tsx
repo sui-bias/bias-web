@@ -35,7 +35,7 @@ export default function NewRoomPage() {
 
   async function handleCreate() {
     if (!address) {
-      setError("방 생성은 지갑 연결 후 가능합니다.")
+      setError("Connect your wallet to create a room.")
       return
     }
     if (!name.trim()) return
@@ -60,7 +60,7 @@ export default function NewRoomPage() {
       })
       router.push(`/rooms/${id}`)
     } catch {
-      setError("방 생성에 실패했습니다.")
+      setError("Failed to create room.")
       setSaving(false)
     }
   }
@@ -70,25 +70,25 @@ export default function NewRoomPage() {
       <header className="flex items-center gap-3 border-b border-grey-200 px-3 py-3 dark:border-grey-800">
         <Link
           href="/chat"
-          aria-label="뒤로"
+          aria-label="Back"
           className="flex size-9 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
         >
           <ArrowLeft size={20} />
         </Link>
         <p className="text-lg font-bold text-grey-900 dark:text-white">
-          그룹 방 만들기
+          Create group room
         </p>
       </header>
 
       <div className="flex-1 space-y-6 p-4">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-grey-600 dark:text-grey-300">
-            방 이름 <span className="text-brand">*</span>
+            Room name <span className="text-brand">*</span>
           </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="예: 주말 수다방"
+            placeholder="e.g. Weekend chat"
             maxLength={30}
             className="h-11 w-full rounded-xl border border-grey-200 bg-white px-3 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
           />
@@ -96,7 +96,7 @@ export default function NewRoomPage() {
 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-grey-600 dark:text-grey-300">
-            캐릭터 초대 <span className="text-grey-400">(최대 {MAX_CHARACTERS})</span>
+            Invite characters <span className="text-grey-400">(max {MAX_CHARACTERS})</span>
           </p>
           <div className="grid grid-cols-3 gap-2">
             {MOCK_CHARACTERS.map((c) => {
@@ -145,7 +145,7 @@ export default function NewRoomPage() {
           disabled={!canSubmit}
           className="h-12 w-full rounded-xl bg-brand text-sm font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-40"
         >
-          {saving ? "만드는 중…" : "그룹 방 만들기"}
+          {saving ? "Creating…" : "Create group room"}
         </button>
       </div>
     </div>

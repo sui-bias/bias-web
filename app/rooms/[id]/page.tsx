@@ -12,9 +12,9 @@ import type { Message, Room, SenderRef } from "@/lib/types"
 
 function senderName(sender: SenderRef, myAddress: string | null): string {
   if (sender.type === "character") {
-    return getCharacter(sender.characterId)?.display_name ?? "캐릭터"
+    return getCharacter(sender.characterId)?.display_name ?? "Character"
   }
-  if (myAddress && sender.address === myAddress) return "나"
+  if (myAddress && sender.address === myAddress) return "You"
   return `${sender.address.slice(0, 6)}…`
 }
 
@@ -86,7 +86,7 @@ export default function RoomPage({
 
   function handleBlock() {
     // TODO: 차단 테이블/정책 필요. 현재는 안내만.
-    alert("차단 기능은 준비 중입니다.")
+    alert("Blocking is coming soon.")
   }
 
   async function handleSend() {
@@ -135,7 +135,7 @@ export default function RoomPage({
         }
       }
     } catch {
-      // bias-chat 미연결(로컬 5001 없음) 등 — 사용자 메시지는 이미 저장됨
+      // bias-chat 미연결(로컬 5001 없음) 등 — 사용자 Messages는 이미 저장됨
     } finally {
       setSending(false)
     }
@@ -154,10 +154,10 @@ export default function RoomPage({
     return (
       <div className="mx-auto flex min-h-svh w-full max-w-md flex-col items-center justify-center gap-3 bg-white p-6 dark:bg-grey-900">
         <p className="text-sm text-grey-500 dark:text-grey-400">
-          존재하지 않는 방입니다.
+          Room not found.
         </p>
         <Link href="/chat" className="text-sm font-semibold text-brand">
-          채팅으로 돌아가기
+          Back to chat
         </Link>
       </div>
     )
@@ -171,7 +171,7 @@ export default function RoomPage({
       <header className="flex items-center gap-3 border-b border-grey-200 px-3 py-3 dark:border-grey-800">
         <Link
           href="/chat"
-          aria-label="뒤로"
+          aria-label="Back"
           className="flex size-9 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
         >
           <ArrowLeft size={20} />
@@ -183,14 +183,14 @@ export default function RoomPage({
           <p className="truncate text-xs text-grey-500 dark:text-grey-400">
             {otherUser
               ? `@${otherUser.username}`
-              : `참여자 ${room.participants.length} · 캐릭터 ${
+              : `Members ${room.participants.length} · Characters ${
                   characters
                     .map((c) =>
                       c.type === "character"
                         ? (getCharacter(c.characterId)?.display_name ?? "?")
                         : ""
                     )
-                    .join(", ") || "없음"
+                    .join(", ") || "None"
                 }`}
           </p>
         </div>
@@ -200,7 +200,7 @@ export default function RoomPage({
       {otherUser && !otherFriend ? (
         <div className="flex items-center justify-between gap-3 border-b border-grey-200 bg-grey-50 px-4 py-2.5 dark:border-grey-800 dark:bg-grey-800/50">
           <p className="min-w-0 truncate text-xs text-grey-600 dark:text-grey-300">
-            {otherUser.display_name}님과의 새 대화예요.
+            {otherUser.display_name} — say hi to start chatting.
           </p>
           <div className="flex shrink-0 gap-1.5">
             <button
@@ -208,24 +208,24 @@ export default function RoomPage({
               onClick={handleAddFriend}
               className="rounded-lg bg-brand px-2.5 py-1 text-xs font-semibold text-white"
             >
-              친구 추가
+              Add friend
             </button>
             <button
               type="button"
               onClick={handleBlock}
               className="rounded-lg border border-grey-300 px-2.5 py-1 text-xs font-semibold text-grey-600 dark:border-grey-600 dark:text-grey-300"
             >
-              차단
+              Block
             </button>
           </div>
         </div>
       ) : null}
 
-      {/* 메시지 */}
+      {/* Messages */}
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <p className="py-10 text-center text-xs text-grey-400 dark:text-grey-500">
-            첫 메시지를 보내보세요.
+            Send the first message.
           </p>
         ) : (
           messages.map((m) => {
@@ -259,7 +259,7 @@ export default function RoomPage({
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSend()
           }}
-          placeholder={address ? "메시지 입력" : "지갑 연결 후 전송 가능"}
+          placeholder={address ? "Type a message" : "Connect wallet to send"}
           disabled={!address}
           className="h-10 w-full rounded-full border border-grey-200 bg-grey-100 px-4 text-sm text-grey-900 outline-none focus:border-brand disabled:opacity-60 dark:border-grey-700 dark:bg-grey-800 dark:text-white"
         />
@@ -267,7 +267,7 @@ export default function RoomPage({
           type="button"
           onClick={handleSend}
           disabled={!input.trim() || !address || sending}
-          aria-label="전송"
+          aria-label="Send"
           className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-40"
         >
           <SendHorizonal size={18} />

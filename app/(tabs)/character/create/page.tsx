@@ -10,7 +10,7 @@ export default function CharacterCreatePage() {
         left={
           <Link
             href="/character"
-            aria-label="캐릭터 목록으로 돌아가기"
+            aria-label="Back to characters"
             className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
           >
             <ArrowLeft size={20} />

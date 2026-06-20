@@ -113,9 +113,9 @@ export const MBTI_TYPES = [
 ] as const
 
 export const VISIBILITY_OPTIONS: { value: Visibility; label: string }[] = [
-  { value: "public", label: "공개" },
-  { value: "friends", label: "친구만" },
-  { value: "private", label: "비공개" },
+  { value: "public", label: "Public" },
+  { value: "friends", label: "Friends only" },
+  { value: "private", label: "Private" },
 ]
 
 export const AFFINITY_LEVELS: { value: Affinity; label: string }[] = [

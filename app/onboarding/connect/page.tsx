@@ -53,7 +53,7 @@ export default function ConnectPage() {
       })
       if (!res.ok) {
         const { error: msg } = await res.json().catch(() => ({}))
-        throw new Error(msg ?? "로그인에 실패했습니다.")
+        throw new Error(msg ?? "Login failed.")
       }
       const { isNew } = (await res.json()) as { isNew: boolean }
 
@@ -61,7 +61,7 @@ export default function ConnectPage() {
       router.replace(isNew ? "/onboarding/profile" : "/chat")
     } catch (e) {
       setPhase("idle")
-      setError(e instanceof Error ? e.message : "로그인에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Login failed.")
     }
   }
 
@@ -87,7 +87,7 @@ export default function ConnectPage() {
           if (account) login(account)
           else {
             setPhase("idle")
-            setError("지갑 계정을 찾을 수 없습니다.")
+            setError("Wallet account not found.")
           }
         },
         onError: () => {

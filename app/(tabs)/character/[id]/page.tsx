@@ -17,7 +17,7 @@ export default async function CharacterEditPage({
 
   // 제공 캐릭터는 수정/삭제 불가
   const blockedReason = character.isOfficial
-    ? "제공 캐릭터는 수정할 수 없습니다."
+    ? "Provided characters can't be edited."
     : undefined
 
   return (
@@ -26,7 +26,7 @@ export default async function CharacterEditPage({
         left={
           <Link
             href="/character"
-            aria-label="캐릭터 목록으로 돌아가기"
+            aria-label="Back to characters"
             className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
           >
             <ArrowLeft size={20} />

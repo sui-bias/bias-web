@@ -9,7 +9,7 @@ import { getOrCreateDirectUserRoom } from "@/lib/rooms"
 import { getUser, type UserRow } from "@/lib/users"
 import { ProfileActionButton, ProfileHero } from "./profile-hero"
 
-// 실제 사람 유저 프로필 (Supabase users). 1:1 채팅(유저-유저 방) + 친구 추가(일방향).
+// 실제 사람 유저 Profile (Supabase users). Chat(유저-유저 방) + Add friend(일방향).
 export function RealUserProfileView({ address }: { address: string }) {
   const router = useRouter()
   const { address: myAddress } = useCurrentUser()
@@ -40,7 +40,7 @@ export function RealUserProfileView({ address }: { address: string }) {
 
   async function handleAdd() {
     if (!myAddress) {
-      setNotice("친구 추가는 지갑 연결 후 가능합니다.")
+      setNotice("Connect your wallet to add friends.")
       return
     }
     setAdding(true)
@@ -48,7 +48,7 @@ export function RealUserProfileView({ address }: { address: string }) {
       await addFriend(myAddress, address)
       setFriend(true)
     } catch {
-      setNotice("친구 추가에 실패했습니다.")
+      setNotice("Failed to add friend.")
     } finally {
       setAdding(false)
     }
@@ -56,7 +56,7 @@ export function RealUserProfileView({ address }: { address: string }) {
 
   async function startChat() {
     if (!myAddress) {
-      setNotice("1:1 채팅은 지갑 연결 후 가능합니다.")
+      setNotice("Connect your wallet to chat.")
       return
     }
     if (!user) return
@@ -70,7 +70,7 @@ export function RealUserProfileView({ address }: { address: string }) {
       router.push(`/rooms/${roomId}`)
     } catch {
       setChatBusy(false)
-      setNotice("채팅방을 여는 데 실패했어요.")
+      setNotice("Failed to open chat.")
     }
   }
 
@@ -86,7 +86,7 @@ export function RealUserProfileView({ address }: { address: string }) {
     return (
       <div className="space-y-3 p-6 text-center">
         <p className="text-sm text-grey-500 dark:text-grey-400">
-          존재하지 않는 유저입니다.
+          User not found.
         </p>
       </div>
     )
@@ -100,21 +100,21 @@ export function RealUserProfileView({ address }: { address: string }) {
         backHref="/list"
         actions={
           isMe ? (
-            <ProfileActionButton icon={UserX} label="내 프로필" disabled />
+            <ProfileActionButton icon={UserX} label="My profile" disabled />
           ) : (
             <>
               <ProfileActionButton
                 icon={MessageCircle}
-                label={chatBusy ? "여는 중…" : "1:1 채팅"}
+                label={chatBusy ? "Opening…" : "Chat"}
                 primary
                 onClick={startChat}
               />
               {friend ? (
-                <ProfileActionButton icon={UserCheck} label="친구" disabled />
+                <ProfileActionButton icon={UserCheck} label="Friends" disabled />
               ) : (
                 <ProfileActionButton
                   icon={UserPlus}
-                  label={adding ? "추가 중…" : "친구 추가"}
+                  label={adding ? "Adding…" : "Add friend"}
                   onClick={handleAdd}
                 />
               )}
@@ -128,7 +128,7 @@ export function RealUserProfileView({ address }: { address: string }) {
           <p className="text-center text-xs text-brand">{notice}</p>
         ) : null}
         <div className="rounded-xl bg-grey-100 px-3 py-2 text-xs text-grey-600 dark:bg-grey-800 dark:text-grey-300">
-          <span className="font-semibold">지갑</span> · {address.slice(0, 10)}…
+          <span className="font-semibold">Wallet</span> · {address.slice(0, 10)}…
           {address.slice(-6)}
         </div>
       </section>

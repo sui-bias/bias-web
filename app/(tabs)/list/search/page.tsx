@@ -29,7 +29,7 @@ export default function FriendSearchPage() {
       const rows = await searchUsers(q, myAddress)
       setResults(rows)
     } catch {
-      setError("검색에 실패했습니다.")
+      setError("Search failed.")
     } finally {
       setSearched(true)
       setLoading(false)
@@ -38,7 +38,7 @@ export default function FriendSearchPage() {
 
   async function handleAdd(address: string) {
     if (!myAddress) {
-      setError("친구 추가는 지갑 연결 후 가능합니다.")
+      setError("Connect your wallet to add friends.")
       return
     }
     setError(null)
@@ -47,7 +47,7 @@ export default function FriendSearchPage() {
       setAdded((prev) => new Set(prev).add(address))
     } catch {
       // friendships 테이블 생성 전에는 여기로 떨어진다.
-      setError("아직 친구 추가를 사용할 수 없습니다. (DB 준비 중)")
+      setError("Adding friends isn't available yet.")
     }
   }
 
@@ -57,13 +57,13 @@ export default function FriendSearchPage() {
         left={
           <Link
             href="/list"
-            aria-label="친구 목록으로"
+            aria-label="Back to friends"
             className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
           >
             <ArrowLeft size={20} />
           </Link>
         }
-        title="친구 추가"
+        title="Add friend"
       />
 
       <div className="px-4">
@@ -75,7 +75,7 @@ export default function FriendSearchPage() {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="아이디 또는 지갑 주소로 검색"
+            placeholder="Search by ID or wallet address"
             className="h-11 w-full rounded-xl border border-grey-200 bg-grey-100 pr-3 pl-10 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
           />
         </form>
@@ -85,11 +85,11 @@ export default function FriendSearchPage() {
       <section className="px-4">
         {loading ? (
           <p className="py-8 text-center text-sm text-grey-500 dark:text-grey-400">
-            검색 중...
+            Searching…
           </p>
         ) : searched && results.length === 0 ? (
           <p className="py-8 text-center text-sm text-grey-500 dark:text-grey-400">
-            일치하는 유저가 없습니다.
+            No matching users.
           </p>
         ) : (
           <ul className="divide-y divide-grey-100 dark:divide-grey-800">
@@ -114,7 +114,7 @@ export default function FriendSearchPage() {
                   {isAdded ? (
                     <span className="flex items-center gap-1 rounded-lg border border-grey-200 px-3 py-1.5 text-xs font-semibold text-grey-500 dark:border-grey-700 dark:text-grey-400">
                       <UserCheck size={14} />
-                      추가됨
+                      Added
                     </span>
                   ) : (
                     <button
@@ -122,7 +122,7 @@ export default function FriendSearchPage() {
                       className="flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition-opacity active:opacity-80"
                     >
                       <UserPlus size={14} />
-                      친구 추가
+                      Add friend
                     </button>
                   )}
                 </li>
