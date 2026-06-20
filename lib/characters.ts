@@ -165,11 +165,11 @@ export async function deleteCharacter(id: string): Promise<void> {
   const { error } = await supabase.from("characters").delete().eq("id", id)
   if (error) throw new Error(error.message)
 }
-
 // 공식 캐릭터 카드(온보딩 선택용 요약)
 function toOfficialCharacterCard(row: CharacterRow): OfficialCharacterCard {
-  const genre =
-    Array.isArray(row.genre) && row.genre.length > 0 ? row.genre[0] : undefined
+  const genre = Array.isArray(row.genre)
+    ? row.genre.find((g) => typeof g === "string" && g.trim().length > 0)
+    : undefined
   const chatCharacterId = row.chat_character_id?.trim() || undefined
   const imageUrl = row.image_url ?? undefined
 
