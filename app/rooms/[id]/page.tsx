@@ -10,16 +10,20 @@ import {
   UserPlus,
 } from "lucide-react"
 import { useCurrentUser } from "@/hooks/use-current-user"
-import { getCharacter } from "@/lib/mock"
+import { getCharacter } from "@/lib/characters"
 import { addFriend, isFriend } from "@/lib/friends"
 import { addMessage, getRoom, listMessages } from "@/lib/rooms"
 import { getUser, type UserRow } from "@/lib/users"
-import type { Message, Room, SenderRef } from "@/lib/types"
+import type { Character, Message, Room, SenderRef } from "@/lib/types"
 import { AppHeader } from "@/components/app-header"
 
-function senderName(sender: SenderRef, myAddress: string | null): string {
+function senderName(
+  sender: SenderRef,
+  myAddress: string | null,
+  characterById: Record<string, Character>
+): string {
   if (sender.type === "character") {
-    return getCharacter(sender.characterId)?.display_name ?? "캐릭터"
+    return characterById[sender.characterId]?.display_name ?? "캐릭터"
   }
   if (myAddress && sender.address === myAddress) return "나"
   return `${sender.address.slice(0, 6)}…`
@@ -61,6 +65,9 @@ export default function RoomPage({
   const [sessionId, setSessionId] = useState<number | null>(null)
   const [otherUser, setOtherUser] = useState<UserRow | null>(null)
   const [otherFriend, setOtherFriend] = useState(false)
+  const [characterById, setCharacterById] = useState<Record<string, Character>>(
+    {}
+  )
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const refresh = useCallback(async () => {
@@ -79,6 +86,48 @@ export default function RoomPage({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadCharacters = async () => {
+      if (!room) {
+        setCharacterById({})
+        return
+      }
+
+      const characterIds = [
+        ...new Set(
+          room.participants.flatMap((p) =>
+            p.type === "character" ? [p.characterId] : []
+          )
+        ),
+      ]
+
+      if (!characterIds.length) {
+        setCharacterById({})
+        return
+      }
+
+      const entries = await Promise.all(
+        characterIds.map(async (characterId) => {
+          const character = await getCharacter(characterId)
+          return [characterId, character] as const
+        })
+      )
+
+      if (cancelled) return
+      const next: Record<string, Character> = {}
+      entries.forEach(([characterId, character]) => {
+        if (character) next[characterId] = character
+      })
+      setCharacterById(next)
+    }
+
+    void loadCharacters()
+    return () => {
+      cancelled = true
+    }
+  }, [room])
 
   // direct 유저-유저 방이면 상대 유저 정보 + 친구 여부 로드(친구추가/차단 박스용)
   useEffect(() => {
@@ -129,10 +178,19 @@ export default function RoomPage({
 
       // direct 방 + 채팅 가능 캐릭터 → bias-chat 으로 응답 받아 저장
       const charP = room?.participants.find((p) => p.type === "character")
-      const character =
+      let character =
         charP?.type === "character"
-          ? getCharacter(charP.characterId)
+          ? characterById[charP.characterId]
           : undefined
+
+      if (!character && charP?.type === "character") {
+        const fetched = await getCharacter(charP.characterId)
+        if (fetched) {
+          character = fetched
+          setCharacterById((prev) => ({ ...prev, [fetched.id]: fetched }))
+        }
+      }
+
       if (room?.type === "direct" && character?.chatCharacterId) {
         let sid = sessionId
         if (sid == null) {
@@ -227,7 +285,8 @@ export default function RoomPage({
                       characters
                         .map((c) =>
                           c.type === "character"
-                            ? (getCharacter(c.characterId)?.display_name ?? "?")
+                            ? (characterById[c.characterId]?.display_name ??
+                              "?")
                             : ""
                         )
                         .join(", ") || "없음"
@@ -274,7 +333,7 @@ export default function RoomPage({
 
       {/* 메시지 */}
       <div
-        className={`flex-1 space-y-2 overflow-y-auto px-4 pb-20 ${otherUser && !otherFriend ? "pt-32" : "pt-10"}`}
+        className={`flex-1 space-y-2 overflow-y-auto px-4 pb-18 ${otherUser && !otherFriend ? "pt-32" : "pt-18"}`}
       >
         {messages.length === 0 ? (
           <p className="py-10 text-center text-xs text-grey-400 dark:text-grey-500">
@@ -289,12 +348,16 @@ export default function RoomPage({
 
             const avatarUrl =
               m.sender.type === "character"
-                ? getCharacter(m.sender.characterId)?.imageUrl
+                ? characterById[m.sender.characterId]?.imageUrl
                 : otherUser && m.sender.address === otherUser.address
                   ? (otherUser.image_url ?? undefined)
                   : undefined
 
-            const avatarFallback = senderName(m.sender, address).slice(0, 1)
+            const avatarFallback = senderName(
+              m.sender,
+              address,
+              characterById
+            ).slice(0, 1)
 
             return mine ? (
               <div
@@ -322,7 +385,7 @@ export default function RoomPage({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={avatarUrl}
-                        alt={senderName(m.sender, address)}
+                        alt={senderName(m.sender, address, characterById)}
                         className="size-full object-cover"
                       />
                     ) : (
@@ -337,7 +400,7 @@ export default function RoomPage({
                 <div className="min-w-0">
                   {showSenderName ? (
                     <p className="mb-0.5 text-[11px] text-grey-500 dark:text-grey-400">
-                      {senderName(m.sender, address)}
+                      {senderName(m.sender, address, characterById)}
                     </p>
                   ) : null}
                   <div className="ml-auto flex flex-row items-end gap-1">
@@ -357,7 +420,7 @@ export default function RoomPage({
       </div>
 
       {/* 입력 */}
-      <div className="fixed right-0 bottom-0 left-0 mx-auto w-full max-w-md border-2 bg-white px-4 py-3 dark:bg-grey-900">
+      <div className="fixed right-0 bottom-0 left-0 mx-auto w-full max-w-md bg-white px-4 py-3 dark:bg-grey-900">
         <div className="flex items-end gap-2">
           <input
             value={input}
