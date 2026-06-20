@@ -68,7 +68,7 @@ function rowToCharacter(r: CharacterRow): Character {
 }
 
 // 생성/수정 시 DB 컬럼으로 변환 (id/owner_id/is_official 제외 — 호출부에서 지정)
-function draftToRow(d: CharacterDraft) {
+export function draftToRow(d: CharacterDraft) {
   return {
     display_name: d.display_name,
     image_url: d.imageUrl ?? null,
@@ -139,18 +139,25 @@ export async function getCharacter(id: string): Promise<Character | null> {
   return rowToCharacter(data as CharacterRow)
 }
 
-/** 캐릭터 생성. 생성된 id 반환. */
+/**
+ * 캐릭터 생성. 서버 라우트(/api/characters)를 거친다 — 서버가 온체인 plan +
+ * 보유 개수를 검증하므로, 클라 UI 게이트를 우회한 직접 호출도 차단된다.
+ */
 export async function createCharacter(
   draft: CharacterDraft,
   ownerId: string
 ): Promise<string> {
-  const { data, error } = await supabase
-    .from("characters")
-    .insert({ ...draftToRow(draft), owner_id: ownerId, is_official: false })
-    .select("id")
-    .single()
-  if (error) throw new Error(error.message)
-  return String((data as { id: string }).id)
+  const res = await fetch("/api/characters", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ownerId, draft }),
+  })
+  const json = (await res.json().catch(() => ({}))) as {
+    id?: string
+    error?: string
+  }
+  if (!res.ok) throw new Error(json.error ?? "캐릭터 생성에 실패했습니다.")
+  return String(json.id)
 }
 
 /** 캐릭터 수정. */
