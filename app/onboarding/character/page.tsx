@@ -21,7 +21,7 @@ const CARD_COLORS = [
 ]
 
 export default function CharacterGatePage() {
-  const { address } = useCurrentUser()
+  const { address, loading: userLoading } = useCurrentUser()
 
   const router = useRouter()
   const [characters, setCharacters] = useState<Character[]>([])
@@ -29,6 +29,12 @@ export default function CharacterGatePage() {
   const [selected, setSelected] = useState<string | null>(null)
 
   const selectedChar = characters.find((c) => c.id === selected)
+
+  useEffect(() => {
+    if (!userLoading && !address) {
+      router.replace("/onboarding")
+    }
+  }, [userLoading, address, router])
 
   useEffect(() => {
     let alive = true
@@ -63,6 +69,14 @@ export default function CharacterGatePage() {
       selectedChar.display_name
     )
     router.push(`/rooms/${roomId}`)
+  }
+
+  if (userLoading || !address) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-white dark:bg-grey-900">
+        <div className="size-6 animate-spin rounded-full border-2 border-grey-300 border-t-brand" />
+      </div>
+    )
   }
 
   return (

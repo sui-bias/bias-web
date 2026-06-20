@@ -11,7 +11,6 @@ export default async function CharacterChatPage({
 }: CharacterChatPageProps) {
   const { roomId } = await params
   const character = PROVIDED_CHARACTERS.find((item) => item.id === roomId)
-  console.log(character)
 
   if (!character) {
     notFound()

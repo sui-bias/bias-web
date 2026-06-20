@@ -17,6 +17,8 @@ import { getUser, type UserRow } from "@/lib/users"
 import type { Character, Message, Room, SenderRef } from "@/lib/types"
 import { AppHeader } from "@/components/app-header"
 
+const CHARACTER_BUBBLE_DELAY_MS = 1400
+
 function senderName(
   sender: SenderRef,
   myAddress: string | null,
@@ -49,6 +51,12 @@ function formatMessageTime(iso: string): string {
   }).format(date)
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
 export default function RoomPage({
   params,
 }: {
@@ -69,6 +77,11 @@ export default function RoomPage({
     {}
   )
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const firstMessageBootstrappedRef = useRef(false)
+
+  useEffect(() => {
+    firstMessageBootstrappedRef.current = false
+  }, [id])
 
   const refresh = useCallback(async () => {
     const [r, msgs] = await Promise.all([getRoom(id), listMessages(id)])
@@ -128,6 +141,44 @@ export default function RoomPage({
       cancelled = true
     }
   }, [room])
+
+  useEffect(() => {
+    let cancelled = false
+    const ensureFirstMessage = async () => {
+      if (firstMessageBootstrappedRef.current) return
+      if (!room || room.type !== "direct") return
+      if (messages.length !== 0) return
+
+      const charP = room.participants.find((p) => p.type === "character")
+      if (!charP || charP.type !== "character") return
+
+      let character = characterById[charP.characterId]
+      if (!character) {
+        const fetched = await getCharacter(charP.characterId)
+        if (cancelled || !fetched) return
+        character = fetched
+        setCharacterById((prev) => ({ ...prev, [fetched.id]: fetched }))
+      }
+      const opening = character.firstMessage?.trim()
+      if (!opening) return
+
+      firstMessageBootstrappedRef.current = true
+      try {
+        await addMessage(
+          id,
+          { type: "character", characterId: charP.characterId },
+          opening
+        )
+        await refresh()
+      } catch {
+        firstMessageBootstrappedRef.current = false
+      }
+    }
+    void ensureFirstMessage()
+    return () => {
+      cancelled = true
+    }
+  }, [room, messages.length, characterById, id, refresh])
 
   // direct 유저-유저 방이면 상대 유저 정보 + 친구 여부 로드(친구추가/차단 박스용)
   useEffect(() => {
@@ -191,13 +242,39 @@ export default function RoomPage({
         }
       }
 
-      if (room?.type === "direct" && character?.chatCharacterId) {
+      if (room?.type === "direct" && character) {
         let sid = sessionId
         if (sid == null) {
           const sres = await fetch("/api/chat/session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ characterId: character.chatCharacterId }),
+            body: JSON.stringify({
+              characterId: character.id,
+              roomId: id,
+              userAddress: address,
+              character: {
+                name: character.display_name,
+                age: character.age,
+                job: character.job,
+                nativeLanguage: character.nativeLanguage,
+                narrative: character.narrative,
+                background: character.background,
+                family: character.family,
+                mbti: character.mbti,
+                height: character.height,
+                traits: character.traits,
+                textingStyle: character.textingStyle,
+                likes: character.likes,
+                dislikes: character.dislikes,
+                hidden: character.hidden,
+                bannedTopics: character.bannedTopics,
+                firstSituation: character.firstSituation,
+                affinityStart: character.affinityStart,
+                ownerId: character.ownerId,
+                chatCharacterId: character.chatCharacterId,
+                speechHabits: character.speechHabits,
+              },
+            }),
           })
           const sjson = await sres.json()
           if (!sres.ok) throw new Error(sjson?.error ?? "session failed")
@@ -207,7 +284,35 @@ export default function RoomPage({
         const mres = await fetch("/api/chat/message", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: sid, text }),
+          body: JSON.stringify({
+            sessionId: sid,
+            text,
+            roomId: id,
+            userAddress: address,
+            characterId: character.id,
+            character: {
+              name: character.display_name,
+              age: character.age,
+              job: character.job,
+              nativeLanguage: character.nativeLanguage,
+              narrative: character.narrative,
+              background: character.background,
+              family: character.family,
+              mbti: character.mbti,
+              height: character.height,
+              traits: character.traits,
+              textingStyle: character.textingStyle,
+              likes: character.likes,
+              dislikes: character.dislikes,
+              hidden: character.hidden,
+              bannedTopics: character.bannedTopics,
+              firstSituation: character.firstSituation,
+              affinityStart: character.affinityStart,
+              ownerId: character.ownerId,
+              chatCharacterId: character.chatCharacterId,
+              speechHabits: character.speechHabits,
+            },
+          }),
         })
         const mjson = await mres.json()
         if (
@@ -216,15 +321,19 @@ export default function RoomPage({
           charP?.type === "character"
         ) {
           const turnId = crypto.randomUUID()
-          for (const bubble of mjson.bubbles as string[]) {
+          const bubbles = mjson.bubbles as string[]
+          for (let index = 0; index < bubbles.length; index += 1) {
             await addMessage(
               id,
               { type: "character", characterId: charP.characterId },
-              bubble,
+              bubbles[index],
               turnId
             )
+            await refresh()
+            if (index < bubbles.length - 1) {
+              await sleep(CHARACTER_BUBBLE_DELAY_MS)
+            }
           }
-          await refresh()
         }
       }
     } catch {

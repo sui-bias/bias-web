@@ -7,13 +7,13 @@ import {
   createNetworkConfig,
 } from "@mysten/dapp-kit"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { getFullnodeUrl } from "@mysten/sui/client"
+import { getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc"
 import "@mysten/dapp-kit/dist/index.css"
 
 // Bias는 mainnet에 배포한다. 개발 중에는 NEXT_PUBLIC_SUI_NETWORK=testnet 으로 전환 가능.
 const { networkConfig } = createNetworkConfig({
-  mainnet: { url: getFullnodeUrl("mainnet") },
-  testnet: { url: getFullnodeUrl("testnet") },
+  mainnet: { url: getJsonRpcFullnodeUrl("mainnet"), network: "mainnet" },
+  testnet: { url: getJsonRpcFullnodeUrl("testnet"), network: "testnet" },
 })
 
 const DEFAULT_NETWORK =
