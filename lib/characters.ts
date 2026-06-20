@@ -5,15 +5,6 @@
 import { supabase } from "./supabase"
 import type { Affinity, Character, CharacterDraft, Visibility } from "./types"
 
-export interface OfficialCharacterCard {
-  id: string
-  display_name: string
-  intro: string
-  imageUrl?: string
-  genre?: string
-  chatCharacterId?: string
-}
-
 type CharacterRow = {
   id: string
   display_name: string
@@ -166,29 +157,7 @@ export async function deleteCharacter(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// 공식
-function toOfficialCharacterCard(row: CharacterRow): OfficialCharacterCard {
-  const genre = Array.isArray(row.genre)
-    ? row.genre.find((g) => typeof g === "string" && g.trim().length > 0)
-    : undefined
-
-  const chatCharacterId =
-    row.chat_character_id?.trim() || row.chat_character_id?.trim() || undefined
-  const imageUrl = row.image_url ?? row.image_url ?? undefined
-
-  return {
-    id: String(row.id),
-    display_name: row.display_name,
-    intro: row.intro,
-    imageUrl,
-    genre,
-    chatCharacterId,
-  }
-}
-
-export async function getOfficialCharacters(): Promise<
-  OfficialCharacterCard[]
-> {
+export async function getOfficialCharacters(): Promise<Character[]> {
   const { data, error } = await supabase
     .from("characters")
     .select("*")
@@ -200,5 +169,5 @@ export async function getOfficialCharacters(): Promise<
     return []
   }
 
-  return (data as CharacterRow[]).map(toOfficialCharacterCard)
+  return (data as CharacterRow[]).map(rowToCharacter)
 }
