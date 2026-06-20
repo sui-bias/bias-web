@@ -1,17 +1,23 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useCurrentAccount } from "@mysten/dapp-kit"
+import { useAutoConnectWallet, useCurrentAccount } from "@mysten/dapp-kit"
 import { getUser, UserRow } from "@/lib/users"
 import { Plan } from "@/lib/plans"
 
 /** 연결된 지갑 주소 기준으로 Supabase 유저/플랜을 가져온다. */
 export function useCurrentUser() {
   const account = useCurrentAccount()
+  const autoConnect = useAutoConnectWallet()
+  const settled = autoConnect === "attempted" || autoConnect === "disabled"
   const [user, setUser] = useState<UserRow | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
+    if (!settled) {
+      setLoading(true)
+      return
+    }
     if (!account) {
       setUser(null)
       setLoading(false)
@@ -20,7 +26,7 @@ export function useCurrentUser() {
     setLoading(true)
     setUser(await getUser(account.address))
     setLoading(false)
-  }, [account])
+  }, [account, settled])
 
   useEffect(() => {
     // 계정 변경 시 Supabase 유저를 비동기로 다시 불러온다(정당한 데이터 패칭).

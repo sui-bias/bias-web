@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { fromBase64 } from "@mysten/sui/utils"
 import { verifyPersonalMessageSignature } from "@mysten/sui/verify"
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client"
+import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc"
 import { getUser, updateMemwalState, type UserRow } from "@/lib/users"
 import type { MemwalStep } from "@/lib/types"
 
@@ -9,7 +9,10 @@ const NETWORK =
   (process.env.NEXT_PUBLIC_SUI_NETWORK as "mainnet" | "testnet") ?? "mainnet"
 const VERIFY_MAX_AGE_MS = 5 * 60_000
 
-const verifyClient = new SuiClient({ url: getFullnodeUrl(NETWORK) })
+const verifyClient = new SuiJsonRpcClient({
+  url: getJsonRpcFullnodeUrl(NETWORK),
+  network: NETWORK,
+})
 
 type VerifyResult = { address: string }
 

@@ -1,86 +1,73 @@
 import { NextResponse } from "next/server"
-import { toBiasChatCharacterId } from "@/lib/chat-character-map"
 
-const BIAS_CHAT_BASE_URL =
-  process.env.BIAS_CHAT_BASE_URL ?? "http://127.0.0.1:5001"
-
-type BiasChatMessage = {
-  id: number
-  role: "user" | "assistant"
-  content: string
-  emotion: string | null
-}
-
-type BiasChatSessionResponse = {
-  session?: { id?: number }
-  messages?: BiasChatMessage[]
-  level?: {
-    num: number
-    name: string
-    address: string
-    tone: string
+function toSessionId(seed: string): number {
+  // 32-bit FNV-1a hash, constrained to positive signed int range.
+  let hash = 0x811c9dc5
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
   }
-}
-
-function isBiasChatSessionResponse(
-  value: unknown
-): value is BiasChatSessionResponse {
-  if (!value || typeof value !== "object") return false
-  const maybe = value as BiasChatSessionResponse
-  return Boolean(maybe.session && typeof maybe.session.id === "number")
+  return (hash >>> 0) & 0x7fffffff
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { characterId?: string }
-    const webCharacterId = body.characterId?.trim()
+    const body = (await request.json()) as {
+      characterId?: string
+      roomId?: string
+      userAddress?: string
+      character?: {
+        name?: string
+        display_name?: string
+        age?: number
+        job?: string
+        nativeLanguage?: string
+        narrative?: string
+        background?: string
+        family?: string
+        mbti?: string
+        height?: string
+        traits?: string
+        textingStyle?: string
+        likes?: string[]
+        dislikes?: string[]
+        hidden?: string
+        bannedTopics?: string[]
+        firstSituation?: string
+        affinityStart?: number
+        ownerId?: string
+        chatCharacterId?: string
+        speechHabits?: string
+      }
+    }
+    const characterId = body.characterId?.trim()
+    const roomId = body.roomId?.trim()
+    const userAddress = body.userAddress?.trim()
 
-    if (!webCharacterId) {
+    if (!characterId) {
       return NextResponse.json(
         { error: "characterId is required" },
         { status: 400 }
       )
     }
-
-    const biasChatCharacterId = toBiasChatCharacterId(webCharacterId)
-    if (!biasChatCharacterId) {
+    if (!roomId) {
+      return NextResponse.json({ error: "roomId is required" }, { status: 400 })
+    }
+    if (!userAddress) {
       return NextResponse.json(
-        { error: "unsupported characterId" },
+        { error: "userAddress is required" },
         { status: 400 }
       )
     }
 
-    const upstream = await fetch(`${BIAS_CHAT_BASE_URL}/api/sessions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ character_id: biasChatCharacterId }),
-      cache: "no-store",
-    })
-
-    const payload: unknown = await upstream.json()
-
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: "failed to create chat session", detail: payload },
-        { status: upstream.status }
-      )
-    }
-
-    if (!isBiasChatSessionResponse(payload)) {
-      return NextResponse.json(
-        { error: "invalid upstream response: missing session id" },
-        { status: 502 }
-      )
-    }
-    const sessionId = payload.session?.id
-
-    // NOTE: memwal integration point.
-    // This route is the BFF boundary where session persistence can be switched
-    // from bias-chat sqlite -> memwal without changing the client contract.
+    const namespace = `room:${roomId}:char:${characterId}:user:${userAddress}`
+    const sessionId = toSessionId(namespace)
     return NextResponse.json({
       sessionId,
-      messages: payload.messages ?? [],
-      level: payload.level ?? null,
+      messages: [],
+      level: null,
+      namespace,
+      character: body.character ?? null,
     })
   } catch (error) {
     return NextResponse.json(

@@ -64,10 +64,6 @@ export default function AccountPage() {
 
   const busy = phase !== "idle"
 
-  useEffect(() => {
-    console.log(remoteStep)
-  }, [remoteStep])
-
   async function fetchStatus(address: string): Promise<StatusResponse> {
     const res = await fetch(
       `/api/memwal/onboard/status?address=${encodeURIComponent(address)}`,

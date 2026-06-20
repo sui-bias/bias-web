@@ -1,5 +1,5 @@
 import { Transaction } from "@mysten/sui/transactions"
-import type { SuiObjectChange } from "@mysten/sui/client"
+import type { SuiObjectChange } from "@mysten/sui/jsonRpc"
 import { PaidPlan, PLANS } from "./plans"
 
 // 배포 후 환경변수로 주입.

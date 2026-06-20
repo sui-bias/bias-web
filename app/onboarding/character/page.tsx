@@ -6,10 +6,10 @@ import { Check, Sparkles } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import {
-  getOfficialCharacters,
-  type OfficialCharacterCard,
-} from "@/lib/characters"
+import { getOfficialCharacters } from "@/lib/characters"
+import type { Character } from "@/lib/types"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { getOrCreateDirectRoom } from "@/lib/rooms"
 
 const CARD_COLORS = [
   "from-violet-400 to-purple-600",
@@ -21,12 +21,20 @@ const CARD_COLORS = [
 ]
 
 export default function CharacterGatePage() {
+  const { address, loading: userLoading } = useCurrentUser()
+
   const router = useRouter()
-  const [characters, setCharacters] = useState<OfficialCharacterCard[]>([])
+  const [characters, setCharacters] = useState<Character[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
 
   const selectedChar = characters.find((c) => c.id === selected)
+
+  useEffect(() => {
+    if (!userLoading && !address) {
+      router.replace("/onboarding")
+    }
+  }, [userLoading, address, router])
 
   useEffect(() => {
     let alive = true
@@ -53,10 +61,22 @@ export default function CharacterGatePage() {
     }
   }, [characters, selected])
 
-  function handleStart() {
-    if (!selectedChar?.chatCharacterId) return
-    // 팀원 채팅 라우트: 방 id = provided 캐릭터 id
-    router.push(`/chat/${selectedChar.chatCharacterId}`)
+  async function handleStart() {
+    if (!address || !selectedChar) return
+    const roomId = await getOrCreateDirectRoom(
+      address,
+      selectedChar.id, // 내부 캐릭터 ID
+      selectedChar.display_name
+    )
+    router.push(`/rooms/${roomId}`)
+  }
+
+  if (userLoading || !address) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-white dark:bg-grey-900">
+        <div className="size-6 animate-spin rounded-full border-2 border-grey-300 border-t-brand" />
+      </div>
+    )
   }
 
   return (
@@ -133,8 +153,15 @@ export default function CharacterGatePage() {
                 ) : null}
                 {/* Genre badge */}
                 {char.genre?.length ? (
-                  <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
-                    {char.genre[0]}
+                  <div className="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+                    {char.genre.map((genre) => (
+                      <span
+                        key={genre}
+                        className="rounded-full bg-black/30 px-2 py-0.5 text-xs text-white"
+                      >
+                        {genre}
+                      </span>
+                    ))}
                   </div>
                 ) : null}
                 {/* 준비중 (채팅 미지원) */}

@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server"
 import { fromBase64 } from "@mysten/sui/utils"
 import { verifyPersonalMessageSignature } from "@mysten/sui/verify"
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client"
+import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc"
 import { getUser } from "@/lib/users"
 import { LOGIN_MAX_AGE_MS, parseLoginMessage } from "@/lib/auth"
 
@@ -21,7 +21,10 @@ const NETWORK =
   (process.env.NEXT_PUBLIC_SUI_NETWORK as "mainnet" | "testnet") ?? "mainnet"
 
 // zkLogin 서명 검증에 필요(현재 epoch 의 주소 매핑 확인).
-const suiClient = new SuiClient({ url: getFullnodeUrl(NETWORK) })
+const suiClient = new SuiJsonRpcClient({
+  url: getJsonRpcFullnodeUrl(NETWORK),
+  network: NETWORK,
+})
 
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })

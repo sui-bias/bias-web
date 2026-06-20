@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client"
+import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc"
 import {
   fail,
   getUserOrThrow,
@@ -13,7 +13,10 @@ export const runtime = "nodejs"
 
 const NETWORK =
   (process.env.NEXT_PUBLIC_SUI_NETWORK as "mainnet" | "testnet") ?? "mainnet"
-const suiClient = new SuiClient({ url: getFullnodeUrl(NETWORK) })
+const suiClient = new SuiJsonRpcClient({
+  url: getJsonRpcFullnodeUrl(NETWORK),
+  network: NETWORK,
+})
 
 async function findExistingMemwalAccountId(
   ownerAddress: string,
