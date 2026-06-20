@@ -146,6 +146,32 @@ export async function saveProfile(
   return data as UserRow
 }
 
+/** 프로필 편집(표시이름·닉네임·사진). username 중복 시 USERNAME_TAKEN throw. */
+export async function updateProfile(
+  address: string,
+  fields: {
+    display_name: string
+    username: string
+    image_url?: string | null
+  }
+): Promise<void> {
+  const available = await isUsernameAvailable(fields.username, address)
+  if (!available) throw new Error("USERNAME_TAKEN")
+
+  const { error } = await supabase
+    .from("users")
+    .update({
+      display_name: fields.display_name,
+      username: fields.username,
+      image_url: fields.image_url ?? null,
+    })
+    .eq("address", address)
+  if (error) {
+    if (error.code === "23505") throw new Error("USERNAME_TAKEN")
+    throw new Error(error.message)
+  }
+}
+
 /** 구독 성공 반영: users.plan 갱신 + subscriptions upsert. */
 export async function setSubscription(
   address: string,

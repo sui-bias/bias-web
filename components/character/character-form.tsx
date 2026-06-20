@@ -1,8 +1,15 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { ChevronDown, ImagePlus, Trash2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import {
+  createCharacter,
+  deleteCharacter,
+  updateCharacter,
+} from "@/lib/characters"
 import {
   AFFINITY_LEVELS,
   MBTI_TYPES,
@@ -28,6 +35,8 @@ const AFFINITY_STYLES: Record<Affinity, string> = {
 
 type CharacterFormProps = {
   mode?: "create" | "edit"
+  /** edit 모드일 때 대상 캐릭터 id (update/delete 용) */
+  characterId?: string
   initial?: Partial<CharacterDraft>
   submitLabel?: string
   /** free / plus 한도초과 등 플랜 게이트. 사유가 있으면 저장 비활성. */
@@ -38,11 +47,14 @@ type CharacterFormProps = {
 
 export function CharacterForm({
   mode = "create",
+  characterId,
   initial,
   submitLabel,
   blockedReason,
   deletable,
 }: CharacterFormProps) {
+  const router = useRouter()
+  const { address } = useCurrentUser()
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "")
   const [name, setName] = useState(initial?.display_name ?? "")
   const [age, setAge] = useState(initial?.age ? String(initial.age) : "")
@@ -83,7 +95,8 @@ export function CharacterForm({
 
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const errors = useMemo(() => {
     const next: Record<string, string> = {}
@@ -126,32 +139,81 @@ export function CharacterForm({
     }
   }
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     setSubmitted(true)
-    if (!canSubmit) return
+    if (!canSubmit || saving) return
+    if (!address) {
+      setError("캐릭터 저장은 지갑 연결 후 가능합니다.")
+      return
+    }
 
+    setSaving(true)
+    setError(null)
     const draft = buildDraft()
-    // TODO(api): 캐릭터 생성/수정 API 연동. 현재는 콘솔 출력으로 대체.
-    console.log("character draft", draft)
-    setSaved(true)
+    try {
+      if (mode === "edit" && characterId) {
+        await updateCharacter(characterId, draft)
+      } else {
+        await createCharacter(draft, address)
+      }
+      router.push("/character")
+      router.refresh()
+    } catch (e) {
+      setSaving(false)
+      setError(e instanceof Error ? e.message : "저장에 실패했습니다.")
+    }
   }
 
   function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
-    if (file) setImageUrl(URL.createObjectURL(file))
+    if (!file) return
+    // 스토리지 버킷 없이 동작하도록, 이미지를 작게 줄여 data URL 로 저장한다.
+    // (DB image_url 컬럼에 그대로 들어가 어디서든 렌더됨)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 384
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement("canvas")
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext("2d")
+        if (!ctx) return
+        ctx.drawImage(img, 0, 0, w, h)
+        setImageUrl(canvas.toDataURL("image/jpeg", 0.8))
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
   }
 
-  function handleDelete() {
-    // TODO(api): 삭제/복구 가능 기간 처리. 현재는 확인 후 콘솔 출력만.
-    if (!window.confirm("이 캐릭터를 삭제할까요? 진행 중인 방에는 삭제 안내가 표시됩니다.")) {
+  async function handleDelete() {
+    if (!characterId) return
+    if (
+      !window.confirm(
+        "이 캐릭터를 삭제할까요? 진행 중인 방에는 삭제 안내가 표시됩니다."
+      )
+    ) {
       return
     }
-    console.log("delete character", initial?.display_name)
+    setSaving(true)
+    setError(null)
+    try {
+      await deleteCharacter(characterId)
+      router.push("/character")
+      router.refresh()
+    } catch (e) {
+      setSaving(false)
+      setError(e instanceof Error ? e.message : "삭제에 실패했습니다.")
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 px-4 pb-28">
+    <form onSubmit={handleSubmit} className="space-y-6 px-4 pb-40">
       {/* 프로필 */}
       <SectionImage imageUrl={imageUrl} onChange={handleImageChange} />
 
@@ -442,21 +504,21 @@ export function CharacterForm({
       ) : null}
 
       {/* 저장 (고정 하단) */}
-      <div className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md border-t border-grey-200 bg-white/95 p-4 backdrop-blur dark:border-grey-800 dark:bg-grey-900/95">
+      <div className="fixed inset-x-0 bottom-16 z-30 mx-auto w-full max-w-md border-t border-grey-200 bg-white/95 p-4 backdrop-blur dark:border-grey-800 dark:bg-grey-900/95">
         {blockedReason ? (
           <p className="mb-2 text-center text-xs text-brand">{blockedReason}</p>
         ) : null}
-        {saved ? (
-          <p className="mb-2 text-center text-xs text-grey-500 dark:text-grey-400">
-            저장되었습니다. (API 연동 전 — 콘솔 확인)
-          </p>
+        {error ? (
+          <p className="mb-2 text-center text-xs text-brand">{error}</p>
         ) : null}
         <button
           type="submit"
-          disabled={!canSubmit}
+          disabled={!canSubmit || saving}
           className="h-12 w-full rounded-xl bg-brand text-sm font-semibold text-white transition-opacity active:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {submitLabel ?? (mode === "edit" ? "변경 저장" : "캐릭터 만들기")}
+          {saving
+            ? "저장 중…"
+            : (submitLabel ?? (mode === "edit" ? "변경 저장" : "캐릭터 만들기"))}
         </button>
       </div>
     </form>
@@ -573,6 +635,8 @@ function TagInput({
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    // 한글/일어 IME 조합 중 Enter는 글자 확정용 → add 하지 않는다(중복 입력 방지).
+    if (event.nativeEvent.isComposing) return
     if (event.key === "Enter" || event.key === ",") {
       event.preventDefault()
       add()

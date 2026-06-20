@@ -39,7 +39,16 @@ export default function MyPage() {
       {/* 프로필 헤더 카드 */}
       <section className="px-4">
         <div className="flex items-center gap-3">
-          <div className="size-16 shrink-0 rounded-full bg-gradient-to-br from-violet-300 to-indigo-500" />
+          <div className="size-16 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-violet-300 to-indigo-500">
+            {user?.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.image_url}
+                alt=""
+                className="size-full object-cover"
+              />
+            ) : null}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="truncate text-lg font-bold text-grey-900 dark:text-white">
