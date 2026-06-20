@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useDisconnectWallet } from "@mysten/dapp-kit"
 import {
   Bell,
   ChevronRight,
@@ -17,15 +19,35 @@ import {
 } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { useCurrentUser } from "@/hooks/use-current-user"
+import { useCurrentPlan } from "@/hooks/use-current-plan"
 import { PLANS } from "@/lib/plans"
+
+function fmtDate(ms: number) {
+  return new Date(ms).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
+}
 
 function shortAddr(addr?: string | null) {
   return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "지갑 미연결"
 }
 
 export default function MyPage() {
-  const { address, user, plan, loading } = useCurrentUser()
+  const router = useRouter()
+  const { mutate: disconnect } = useDisconnectWallet()
+  const { address, user, loading } = useCurrentUser()
+  // plan 의 진짜 소스는 온체인 NFT 소유(DB는 캐시라 양도 시 stale).
+  const { plan, primary } = useCurrentPlan()
   const isPlus = plan !== "free"
+
+  // 진짜 로그아웃: 지갑 연결을 끊어 autoConnect 캐시를 비운 뒤 온보딩으로.
+  // (단순 라우팅만 하면 캐시가 남아 다음 로그인/계정전환이 안 됨)
+  function handleLogout() {
+    disconnect()
+    router.replace("/onboarding")
+  }
   const characterLimit = PLANS[plan].characterLimit
   const displayName = user?.display_name ?? (loading ? "불러오는 중…" : "게스트")
   const handle = user?.username ?? "guest"
@@ -86,6 +108,14 @@ export default function MyPage() {
               <span className="text-sm font-bold text-grey-900 dark:text-white">
                 {PLANS[plan].name} 플랜
               </span>
+              {primary && !primary.expired && (
+                <span className="text-[11px] text-grey-400">
+                  ~{fmtDate(primary.expiresMs)}
+                </span>
+              )}
+              {primary?.expired && (
+                <span className="text-[11px] text-red-500">만료됨</span>
+              )}
             </div>
             <Link
               href="/pricing"
@@ -98,6 +128,12 @@ export default function MyPage() {
             <Usage label="메시지" value="—" />
             <Usage label="내 캐릭터" value={characterUsage} />
           </div>
+          <Link
+            href="/market"
+            className="block rounded-lg border border-grey-200 py-2 text-center text-xs font-semibold text-grey-600 hover:bg-grey-50 dark:border-grey-700 dark:text-grey-300 dark:hover:bg-grey-800"
+          >
+            구독권 거래소에서 사고팔기
+          </Link>
         </div>
       </section>
 
@@ -132,7 +168,7 @@ export default function MyPage() {
           label="데이터 삭제 요청"
           href="/mypage/data-deletion"
         />
-        <MenuRow icon={LogOut} label="지갑 연결 해제" href="/onboarding" />
+        <MenuRow icon={LogOut} label="지갑 연결 해제" onClick={handleLogout} />
       </MenuGroup>
     </div>
   )
@@ -172,33 +208,46 @@ function MenuRow({
   icon: Icon,
   label,
   href,
+  onClick,
   trailing,
 }: {
   icon: LucideIcon
   label: string
-  href: string
+  href?: string
+  onClick?: () => void
   trailing?: string
 }) {
+  const className =
+    "flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-grey-50 dark:hover:bg-grey-800/80"
+  const inner = (
+    <>
+      <Icon size={20} className="shrink-0 text-grey-500 dark:text-grey-400" />
+      <span className="flex-1 text-sm text-grey-900 dark:text-white">
+        {label}
+      </span>
+      {trailing ? (
+        <span className="text-xs text-grey-400 dark:text-grey-500">
+          {trailing}
+        </span>
+      ) : null}
+      <ChevronRight
+        size={18}
+        className="shrink-0 text-grey-300 dark:text-grey-600"
+      />
+    </>
+  )
+
   return (
     <li>
-      <Link
-        href={href}
-        className="flex items-center gap-3 py-3 transition-colors hover:bg-grey-50 dark:hover:bg-grey-800/80"
-      >
-        <Icon size={20} className="shrink-0 text-grey-500 dark:text-grey-400" />
-        <span className="flex-1 text-sm text-grey-900 dark:text-white">
-          {label}
-        </span>
-        {trailing ? (
-          <span className="text-xs text-grey-400 dark:text-grey-500">
-            {trailing}
-          </span>
-        ) : null}
-        <ChevronRight
-          size={18}
-          className="shrink-0 text-grey-300 dark:text-grey-600"
-        />
-      </Link>
+      {onClick ? (
+        <button onClick={onClick} className={className}>
+          {inner}
+        </button>
+      ) : (
+        <Link href={href ?? "#"} className={className}>
+          {inner}
+        </Link>
+      )}
     </li>
   )
 }
