@@ -1,7 +1,12 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
-import { MY_CHARACTERS } from "@/lib/mock"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { listMyCharacters } from "@/lib/characters"
+import type { Character } from "@/lib/types"
 
 const CARD_COLORS = [
   "from-violet-400 to-indigo-500",
@@ -11,6 +16,25 @@ const CARD_COLORS = [
 ]
 
 export default function CharacterPage() {
+  const { address } = useCurrentUser()
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const rows = address ? await listMyCharacters(address) : []
+      if (!cancelled) {
+        setCharacters(rows)
+        setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [address])
+
   return (
     <div className="space-y-4 pt-6">
       <AppHeader
@@ -25,7 +49,7 @@ export default function CharacterPage() {
           <div className="flex items-center gap-1">
             <Link href="/character/create">
               <button
-                aria-label="Add friend"
+                aria-label="새 캐릭터 만들기"
                 className="flex size-9 items-center justify-center rounded-full bg-brand text-white transition-colors"
               >
                 <Plus size={20} />
@@ -35,8 +59,16 @@ export default function CharacterPage() {
         }
       />
 
+      {!loading && characters.length === 0 ? (
+        <p className="px-4 pt-4 text-sm text-grey-500 dark:text-grey-400">
+          {address
+            ? "아직 만든 캐릭터가 없어요. + 로 첫 캐릭터를 만들어보세요."
+            : "지갑을 연결하면 내가 만든 캐릭터가 보여요."}
+        </p>
+      ) : null}
+
       <section className="grid grid-cols-2 gap-3 px-4 pb-6">
-        {MY_CHARACTERS.map((character, index) => (
+        {characters.map((character, index) => (
           <Link
             key={character.id}
             href={`/character/${character.id}`}

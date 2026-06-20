@@ -164,20 +164,14 @@ export async function updateCharacter(
 export async function deleteCharacter(id: string): Promise<void> {
   const { error } = await supabase.from("characters").delete().eq("id", id)
   if (error) throw new Error(error.message)
-  
-  
-  // 공식 
-  function toOfficialCharacterCard(row: CharacterRow): OfficialCharacterCard {
-  const genre =
-    Array.isArray(row.genre) && row.genre.length > 0
-      ? row.genre[0]
-      : typeof row.genre === "string" && row.genre.trim().length > 0
-        ? row.genre
-        : undefined
+}
 
-  const chatCharacterId =
-    row.chat_character_id?.trim() || row.chatCharacterId?.trim() || undefined
-  const imageUrl = row.image_url ?? row.imageUrl ?? undefined
+// 공식 캐릭터 카드(온보딩 선택용 요약)
+function toOfficialCharacterCard(row: CharacterRow): OfficialCharacterCard {
+  const genre =
+    Array.isArray(row.genre) && row.genre.length > 0 ? row.genre[0] : undefined
+  const chatCharacterId = row.chat_character_id?.trim() || undefined
+  const imageUrl = row.image_url ?? undefined
 
   return {
     id: String(row.id),

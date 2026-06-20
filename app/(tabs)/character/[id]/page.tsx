@@ -3,7 +3,7 @@ import { ArrowLeft } from "lucide-react"
 import { notFound } from "next/navigation"
 import { AppHeader } from "@/components/app-header"
 import { CharacterForm } from "@/components/character/character-form"
-import { getCharacter } from "@/lib/mock"
+import { getCharacter } from "@/lib/characters"
 
 export default async function CharacterEditPage({
   params,
@@ -11,7 +11,7 @@ export default async function CharacterEditPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const character = getCharacter(id)
+  const character = await getCharacter(id)
 
   if (!character) notFound()
 
@@ -37,6 +37,7 @@ export default async function CharacterEditPage({
 
       <CharacterForm
         mode="edit"
+        characterId={id}
         initial={character}
         blockedReason={blockedReason}
         deletable={!character.isOfficial}
