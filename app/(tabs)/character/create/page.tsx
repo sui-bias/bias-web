@@ -63,7 +63,13 @@ export default function CharacterCreatePage() {
 
       <CharacterForm
         mode="create"
-        blockedReason={ready && !gate.allowed ? gate.reason : undefined}
+        blockedReason={
+          !ready
+            ? "Checking your plan…"
+            : !gate.allowed
+              ? gate.reason
+              : undefined
+        }
         submitLabel={
           ready && gate.needUpgrade ? "Upgrade to Plus" : undefined
         }

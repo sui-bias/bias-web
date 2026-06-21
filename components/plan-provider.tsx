@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -39,6 +40,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const client = useSuiClient()
   const [passes, setPasses] = useState<OwnedPass[]>([])
   const [loading, setLoading] = useState(true)
+  const inFlight = useRef(false)
 
   const refresh = useCallback(async () => {
     if (!account) {
@@ -46,14 +48,19 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return
     }
+    if (inFlight.current) return // 포커스 등으로 인한 중복 조회 방지
+    inFlight.current = true
     setLoading(true)
     try {
       setPasses(await getOwnedPasses(client, account.address))
     } catch (e) {
+      // 일시적 RPC 실패. 직전 plan 을 그대로 유지한다 — 빈 배열로 덮으면
+      // 유료 유저가 잠깐 'free' 로 강등돼 업그레이드 안내/기능잠금이 깜빡인다.
       console.error("[plan] getOwnedPasses error:", e)
-      setPasses([])
+    } finally {
+      inFlight.current = false
+      setLoading(false)
     }
-    setLoading(false)
   }, [account, client])
 
   useEffect(() => {

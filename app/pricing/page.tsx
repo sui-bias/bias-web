@@ -4,15 +4,16 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ChevronLeft, Loader2, Check, Store } from "lucide-react"
+import { useSuiClient } from "@mysten/dapp-kit"
 import { AppHeader } from "@/components/app-header"
 import { usePlan } from "@/components/plan-provider"
 import { usePassActions } from "@/hooks/use-pass-actions"
+import { getOwnedPasses } from "@/lib/pass"
 import { PaidPlan, PAID_PLANS, PLANS } from "@/lib/plans"
 import {
   buildMintTx,
   buildRenewTx,
   buildUpgradeTx,
-  extractPassId,
   PRICE_MIST,
   SubscriptionConfigured,
 } from "@/lib/subscription"
@@ -34,6 +35,7 @@ type ActionKind = "mint" | "renew" | "upgrade" | "lower" | "current"
 
 export default function PricingPage() {
   const router = useRouter()
+  const client = useSuiClient()
   const { account, execute } = usePassActions()
   const { plan, passes, primary, refresh } = usePlan()
   const [busy, setBusy] = useState<PaidPlan | null>(null)
@@ -60,22 +62,23 @@ export default function PricingPage() {
     setBusy(p)
     try {
       const kind = resolveAction(p)
-      let changes
       if (kind === "renew") {
         const target = passes.find((x) => x.tier === PLANS[p].tier)!
-        changes = await execute(buildRenewTx(target.id, p))
+        await execute(buildRenewTx(target.id, p))
       } else if (kind === "upgrade") {
-        changes = await execute(
-          buildUpgradeTx(primary!.id, primary!.plan as PaidPlan, p)
-        )
+        await execute(buildUpgradeTx(primary!.id, primary!.plan as PaidPlan, p))
       } else {
-        changes = await execute(buildMintTx(p))
+        await execute(buildMintTx(p))
       }
 
-      const passId = extractPassId(changes) ?? primary?.id ?? ""
-      // 캐시 동기화(실패해도 온체인이 진짜 소스라 치명적 아님).
+      // 온체인에서 방금 갱신된 Pass 를 다시 읽어 정확한 id/만료시각으로 캐시한다.
+      // (실패해도 온체인이 진짜 소스라 치명적 아님 / Pass 없으면 캐시 스킵)
       try {
-        await cacheSubscription(account.address, p, passId)
+        const fresh = await getOwnedPasses(client, account.address)
+        const mine = fresh.find((x) => x.tier === PLANS[p].tier)
+        if (mine) {
+          await cacheSubscription(account.address, p, mine.id, mine.expiresMs)
+        }
       } catch (e) {
         console.error("[pricing] cache error:", e)
       }
