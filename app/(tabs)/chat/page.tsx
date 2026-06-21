@@ -28,10 +28,39 @@ function formatTime(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ""
 
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date)
+  const now = new Date()
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  )
+  const startOfTarget = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  )
+
+  const diffDays = Math.floor(
+    (startOfToday.getTime() - startOfTarget.getTime()) / (1000 * 60 * 60 * 24)
+  )
+
+  // 오늘
+  if (diffDays === 0) {
+    return new Intl.DateTimeFormat("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)
+  }
+
+  // 어제
+  if (diffDays === 1) {
+    return "Yesterday"
+  }
+
+  // 그 이전
+  return `${String(date.getMonth() + 1).padStart(2, "0")}.${String(
+    date.getDate()
+  ).padStart(2, "0")}`
 }
 
 export default function ChatPage() {

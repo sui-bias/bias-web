@@ -51,6 +51,22 @@ function formatMessageTime(iso: string): string {
   }).format(date)
 }
 
+function dayKey(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
+
+function formatDayLabel(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(d)
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -408,7 +424,7 @@ export default function RoomPage({
               aria-label="Chat options"
               className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
             >
-              <MoreVertical size={18} />
+              {characters.length > 0 && <MoreVertical size={18} />}
             </button>
           }
         />
@@ -454,6 +470,8 @@ export default function RoomPage({
               m.sender.type === "user" && m.sender.address === address
             const prev = messages[index - 1]
             const showSenderName = !prev || !isSameSender(prev.sender, m.sender)
+            const showDateDivider =
+              !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
 
             const avatarUrl =
               m.sender.type === "character"
@@ -468,59 +486,71 @@ export default function RoomPage({
               characterById
             ).slice(0, 1)
 
-            return mine ? (
-              <div
-                key={m.id}
-                className="ml-auto flex flex-row-reverse items-end gap-1"
-              >
-                <div className="rounded-2xl rounded-tr-sm bg-brand px-4 py-3 text-sm text-white">
-                  {m.text}
-                </div>
-                <p
-                  className="flex-shrink-0 pl-1 text-right text-[10px] text-grey-500 dark:text-grey-400"
-                  style={{
-                    whiteSpace: "nowrap",
-                    alignSelf: "flex-end",
-                  }}
-                >
-                  {formatMessageTime(m.createdAt)}
-                </p>
-              </div>
-            ) : (
-              <div key={m.id} className="flex max-w-[88%] gap-2">
-                {showSenderName ? (
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
-                    {avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={avatarUrl}
-                        alt={senderName(m.sender, address, characterById)}
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex size-full items-center justify-center text-xs font-semibold text-grey-700 dark:text-grey-100">
-                        {avatarFallback}
-                      </div>
-                    )}
+            return (
+              <div key={m.id}>
+                {showDateDivider ? (
+                  <div className="my-3 flex items-center justify-center">
+                    <span className="rounded-full bg-grey-100 px-3 py-1 text-[11px] text-grey-500 dark:bg-grey-800 dark:text-grey-300">
+                      {formatDayLabel(m.createdAt)}
+                    </span>
                   </div>
-                ) : (
-                  <div className="size-10" />
-                )}
-                <div className="min-w-0">
-                  {showSenderName ? (
-                    <p className="mb-0.5 text-[11px] text-grey-500 dark:text-grey-400">
-                      {senderName(m.sender, address, characterById)}
-                    </p>
-                  ) : null}
-                  <div className="ml-auto flex flex-row items-end gap-1">
-                    <div className="rounded-2xl rounded-tl-sm bg-grey-100 px-4 py-3 text-sm text-grey-900 dark:bg-grey-800 dark:text-grey-100">
+                ) : null}
+
+                {mine ? (
+                  <div
+                    key={m.id}
+                    className="ml-auto flex flex-row-reverse items-end gap-1"
+                  >
+                    <div className="rounded-2xl rounded-tr-sm bg-brand px-4 py-3 text-sm text-white">
                       {m.text}
                     </div>
-                    <p className="flex-shrink-0 text-right text-[10px] text-grey-500 dark:text-grey-400">
+                    <p
+                      className="flex-shrink-0 pl-1 text-right text-[10px] text-grey-500 dark:text-grey-400"
+                      style={{
+                        whiteSpace: "nowrap",
+                        alignSelf: "flex-end",
+                      }}
+                    >
                       {formatMessageTime(m.createdAt)}
                     </p>
                   </div>
-                </div>
+                ) : (
+                  <div key={m.id} className="flex max-w-[88%] gap-2">
+                    {showSenderName ? (
+                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={avatarUrl}
+                            alt={senderName(m.sender, address, characterById)}
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center text-xs font-semibold text-grey-700 dark:text-grey-100">
+                            {avatarFallback}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="size-10" />
+                    )}
+                    <div className="min-w-0">
+                      {showSenderName ? (
+                        <p className="mb-0.5 text-[11px] text-grey-500 dark:text-grey-400">
+                          {senderName(m.sender, address, characterById)}
+                        </p>
+                      ) : null}
+                      <div className="ml-auto flex flex-row items-end gap-1">
+                        <div className="rounded-2xl rounded-tl-sm bg-grey-100 px-4 py-3 text-sm text-grey-900 dark:bg-grey-800 dark:text-grey-100">
+                          {m.text}
+                        </div>
+                        <p className="flex-shrink-0 text-right text-[10px] text-grey-500 dark:text-grey-400">
+                          {formatMessageTime(m.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })
