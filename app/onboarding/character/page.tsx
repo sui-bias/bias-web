@@ -134,7 +134,7 @@ export default function CharacterGatePage() {
               {/* Character image area */}
               <div
                 className={cn(
-                  "relative aspect-[3/4] w-full bg-gradient-to-br",
+                  "relative aspect-[3/4] w-full overflow-hidden bg-gradient-to-br",
                   CARD_COLORS[index % CARD_COLORS.length]
                 )}
               >
