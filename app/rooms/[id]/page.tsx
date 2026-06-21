@@ -22,10 +22,11 @@ import {
   listMessages,
 } from "@/lib/rooms"
 import { getUser, type UserRow } from "@/lib/users"
-import type { Character, Message, Room, SenderRef } from "@/lib/types"
+import type { Character, Message, Participant, Room, SenderRef } from "@/lib/types"
 import { AppHeader } from "@/components/app-header"
 
 const CHARACTER_BUBBLE_DELAY_MS = 1400
+type CharacterParticipant = Extract<Participant, { type: "character" }>
 
 function senderName(
   sender: SenderRef,
@@ -81,6 +82,87 @@ function sleep(ms: number): Promise<void> {
   })
 }
 
+function normalizeText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, "")
+}
+
+function characterNameTokens(
+  participant: CharacterParticipant,
+  characterById: Record<string, Character>
+): string[] {
+  const displayName = characterById[participant.characterId]?.display_name ?? ""
+  const splitNames = displayName
+    .split(/[\s_\-./]+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+  return [...new Set([displayName, participant.characterId, ...splitNames])]
+}
+
+function pickResponders(input: {
+  text: string
+  characterParticipants: CharacterParticipant[]
+  characterById: Record<string, Character>
+  messages: Message[]
+}): CharacterParticipant[] {
+  const { text, characterParticipants, characterById, messages } = input
+  if (!characterParticipants.length) return []
+
+  const normalizedText = normalizeText(text)
+  const explicitlyCalled = characterParticipants.filter((participant) => {
+    const tokens = characterNameTokens(participant, characterById)
+    return tokens.some((token) => {
+      const normalizedToken = normalizeText(token)
+      return normalizedToken.length > 1 && normalizedText.includes(normalizedToken)
+    })
+  })
+  if (explicitlyCalled.length) return explicitlyCalled
+
+  const recentCharacterMessages = [...messages]
+    .reverse()
+    .filter((message) => message.sender.type === "character")
+  const recentCharacterId =
+    recentCharacterMessages[0]?.sender.type === "character"
+      ? recentCharacterMessages[0].sender.characterId
+      : null
+
+  const looksDirected =
+    /[?？]/.test(text) ||
+    /(야|아)[\s!,.?~]*$/u.test(text.trim()) ||
+    /\b(can you|could you|tell me|what|why|how)\b/i.test(text)
+
+  if (looksDirected && recentCharacterId) {
+    const recentCharacter = characterParticipants.find(
+      (participant) => participant.characterId === recentCharacterId
+    )
+    if (recentCharacter) return [recentCharacter]
+  }
+
+  // 연속 발화를 줄이기 위해 직전 캐릭터를 기본 후보군에서 제외한다.
+  const pool =
+    recentCharacterId && characterParticipants.length > 1
+      ? characterParticipants.filter(
+          (participant) => participant.characterId !== recentCharacterId
+        )
+      : characterParticipants
+
+  const recentFromPool = recentCharacterMessages.find((message) =>
+    pool.some(
+      (participant) =>
+        message.sender.type === "character" &&
+        participant.characterId === message.sender.characterId
+    )
+  )
+  if (recentFromPool && recentFromPool.sender.type === "character") {
+    const recentCharacterFromPoolId = recentFromPool.sender.characterId
+    const picked = pool.find(
+      (participant) => participant.characterId === recentCharacterFromPoolId
+    )
+    if (picked) return [picked]
+  }
+
+  return [pool[Math.floor(Math.random() * pool.length)]]
+}
+
 export default function RoomPage({
   params,
 }: {
@@ -95,7 +177,9 @@ export default function RoomPage({
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
-  const [sessionId, setSessionId] = useState<number | null>(null)
+  const [sessionByCharacterId, setSessionByCharacterId] = useState<
+    Record<string, number>
+  >({})
   const [otherUser, setOtherUser] = useState<UserRow | null>(null)
   const [otherFriend, setOtherFriend] = useState(false)
   const [characterById, setCharacterById] = useState<Record<string, Character>>(
@@ -272,31 +356,79 @@ export default function RoomPage({
       await addMessage(id, { type: "user", address }, text)
       await refresh()
 
-      // direct 방 + 채팅 가능 캐릭터 → bias-chat 으로 응답 받아 저장
-      const charP = room?.participants.find((p) => p.type === "character")
-      let character =
-        charP?.type === "character"
-          ? characterById[charP.characterId]
-          : undefined
+      // 방에 캐릭터가 있으면(direct/group 공통) 순서대로 응답 생성
+      const characterParticipants = (room?.participants ?? []).filter(
+        (participant): participant is CharacterParticipant =>
+          participant.type === "character"
+      )
+      const responders = pickResponders({
+        text,
+        characterParticipants,
+        characterById,
+        messages,
+      })
 
-      if (!character && charP?.type === "character") {
-        const fetched = await getCharacter(charP.characterId)
-        if (fetched) {
-          character = fetched
-          setCharacterById((prev) => ({ ...prev, [fetched.id]: fetched }))
-        }
-      }
+      for (const participant of responders) {
+        try {
+          let character = characterById[participant.characterId]
+          if (!character) {
+            const fetched = await getCharacter(participant.characterId)
+            if (!fetched) continue
+            character = fetched
+            setCharacterById((prev) => ({ ...prev, [fetched.id]: fetched }))
+          }
 
-      if (room?.type === "direct" && character) {
-        let sid = sessionId
-        if (sid == null) {
-          const sres = await fetch("/api/chat/session", {
+          let sid = sessionByCharacterId[participant.characterId]
+          if (sid == null) {
+            const sres = await fetch("/api/chat/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                characterId: character.id,
+                roomId: id,
+                userAddress: address,
+                character: {
+                  name: character.display_name,
+                  age: character.age,
+                  job: character.job,
+                  nativeLanguage: character.nativeLanguage,
+                  narrative: character.narrative,
+                  background: character.background,
+                  family: character.family,
+                  mbti: character.mbti,
+                  height: character.height,
+                  traits: character.traits,
+                  textingStyle: character.textingStyle,
+                  likes: character.likes,
+                  dislikes: character.dislikes,
+                  hidden: character.hidden,
+                  bannedTopics: character.bannedTopics,
+                  firstSituation: character.firstSituation,
+                  affinityStart: character.affinityStart,
+                  ownerId: character.ownerId,
+                  chatCharacterId: character.chatCharacterId,
+                  speechHabits: character.speechHabits,
+                },
+              }),
+            })
+            const sjson = await sres.json()
+            if (!sres.ok) throw new Error(sjson?.error ?? "session failed")
+            sid = sjson.sessionId as number
+            setSessionByCharacterId((prev) => ({
+              ...prev,
+              [participant.characterId]: sid as number,
+            }))
+          }
+
+          const mres = await fetch("/api/chat/message", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              characterId: character.id,
+              sessionId: sid,
+              text,
               roomId: id,
               userAddress: address,
+              characterId: character.id,
               character: {
                 name: character.display_name,
                 age: character.age,
@@ -321,56 +453,15 @@ export default function RoomPage({
               },
             }),
           })
-          const sjson = await sres.json()
-          if (!sres.ok) throw new Error(sjson?.error ?? "session failed")
-          sid = sjson.sessionId as number
-          setSessionId(sid)
-        }
-        const mres = await fetch("/api/chat/message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: sid,
-            text,
-            roomId: id,
-            userAddress: address,
-            characterId: character.id,
-            character: {
-              name: character.display_name,
-              age: character.age,
-              job: character.job,
-              nativeLanguage: character.nativeLanguage,
-              narrative: character.narrative,
-              background: character.background,
-              family: character.family,
-              mbti: character.mbti,
-              height: character.height,
-              traits: character.traits,
-              textingStyle: character.textingStyle,
-              likes: character.likes,
-              dislikes: character.dislikes,
-              hidden: character.hidden,
-              bannedTopics: character.bannedTopics,
-              firstSituation: character.firstSituation,
-              affinityStart: character.affinityStart,
-              ownerId: character.ownerId,
-              chatCharacterId: character.chatCharacterId,
-              speechHabits: character.speechHabits,
-            },
-          }),
-        })
-        const mjson = await mres.json()
-        if (
-          mres.ok &&
-          Array.isArray(mjson.bubbles) &&
-          charP?.type === "character"
-        ) {
+          const mjson = await mres.json()
+          if (!mres.ok || !Array.isArray(mjson.bubbles)) continue
+
           const turnId = crypto.randomUUID()
           const bubbles = mjson.bubbles as string[]
           for (let index = 0; index < bubbles.length; index += 1) {
             await addMessage(
               id,
-              { type: "character", characterId: charP.characterId },
+              { type: "character", characterId: participant.characterId },
               bubbles[index],
               turnId
             )
@@ -379,6 +470,8 @@ export default function RoomPage({
               await sleep(CHARACTER_BUBBLE_DELAY_MS)
             }
           }
+        } catch {
+          // 한 캐릭터 생성/응답 실패가 전체 전송을 막지 않도록 한다.
         }
       }
     } catch {
@@ -386,7 +479,6 @@ export default function RoomPage({
     } finally {
       setSending(false)
     }
-    // TODO: 캐릭터 자율 발화 — 백엔드 멀티 캐릭터 세션 나오면 여기서 트리거
   }
 
   if (loading) {

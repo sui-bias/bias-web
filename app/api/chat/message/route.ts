@@ -11,6 +11,7 @@ const MANUAL_CACHE_MAX_SIZE = 200
 const DEFAULT_MEMWAL_NAMESPACE = "bias-web-chat"
 
 type ImportanceLevel = "HIGH" | "MED" | "LOW"
+type ImportanceSource = "llm" | "fallback_rule" | "guardrail"
 
 type CharacterPayload = {
   name?: string
@@ -59,6 +60,8 @@ type LlmJson = {
   bubbles?: string[]
   emotion?: string
   closeness_delta?: number
+  importance?: ImportanceLevel
+  importance_reason?: string
 }
 
 type ManualClientEntry = {
@@ -153,6 +156,32 @@ function inferImportance(text: string, bubbles: string[]): ImportanceLevel {
   if (high.some((token) => joined.includes(token))) return "HIGH"
   if (med.some((token) => joined.includes(token))) return "MED"
   return "LOW"
+}
+
+function importanceRank(value: ImportanceLevel): number {
+  if (value === "HIGH") return 3
+  if (value === "MED") return 2
+  return 1
+}
+
+function isImportanceLevel(value: unknown): value is ImportanceLevel {
+  return value === "HIGH" || value === "MED" || value === "LOW"
+}
+
+function pickImportance(
+  llmImportance: unknown,
+  fallbackImportance: ImportanceLevel
+): { importance: ImportanceLevel; source: ImportanceSource } {
+  if (!isImportanceLevel(llmImportance)) {
+    return { importance: fallbackImportance, source: "fallback_rule" }
+  }
+
+  // Guardrail: 룰 기반이 더 높은 중요도로 잡히면 상향 보정한다.
+  if (importanceRank(fallbackImportance) > importanceRank(llmImportance)) {
+    return { importance: fallbackImportance, source: "guardrail" }
+  }
+
+  return { importance: llmImportance, source: "llm" }
 }
 
 function toNamespace(
@@ -286,7 +315,7 @@ async function callLlm(
           role: "system",
           content:
             `${systemPrompt}\n\n` +
-            "Return JSON with keys: bubbles(string[] max 3), emotion(string), closeness_delta(number -3..3).",
+            "Return JSON with keys: bubbles(string[] max 3), emotion(string), closeness_delta(number -3..3), importance(enum: HIGH|MED|LOW), importance_reason(string <= 120 chars).",
         },
         {
           role: "user",
@@ -318,6 +347,14 @@ async function callLlm(
       emotion: typeof parsed.emotion === "string" ? parsed.emotion : "neutral",
       closeness_delta:
         typeof parsed.closeness_delta === "number" ? parsed.closeness_delta : 0,
+      importance:
+        typeof parsed.importance === "string"
+          ? (parsed.importance.toUpperCase().trim() as ImportanceLevel)
+          : undefined,
+      importance_reason:
+        typeof parsed.importance_reason === "string"
+          ? parsed.importance_reason
+          : undefined,
     }
   } catch {
     return { bubbles: [raw], emotion: "neutral", closeness_delta: 0 }
@@ -388,7 +425,11 @@ export async function POST(request: Request) {
 
     const llm = await callLlm(systemPrompt, history, text)
     const bubbles = Array.isArray(llm.bubbles) ? llm.bubbles : ["..."]
-    const importance = inferImportance(text, bubbles)
+    const fallbackImportance = inferImportance(text, bubbles)
+    const { importance, source: importanceSource } = pickImportance(
+      llm.importance,
+      fallbackImportance
+    )
 
     let memwalStatus = "skipped"
     let memwalDetail = ""
@@ -413,7 +454,7 @@ export async function POST(request: Request) {
         typeof llm.closeness_delta === "number" ? llm.closeness_delta : 0,
       closeness_total: 0,
       importance,
-      importance_source: "fallback_rule",
+      importance_source: importanceSource,
       namespace,
       recall_hits: recalled.length,
       recall_status: recallStatus,
