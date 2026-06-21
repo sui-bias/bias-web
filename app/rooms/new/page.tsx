@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Check } from "lucide-react"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { listMyCharacters } from "@/lib/characters"
+import { listCharacterFriends } from "@/lib/character-friends"
 import { listFriends } from "@/lib/friends"
 import { createRoom } from "@/lib/rooms"
 import type { Character, Participant } from "@/lib/types"
@@ -50,13 +51,17 @@ export default function NewRoomPage() {
         }
         return
       }
-      const [friendRows, characterRows] = await Promise.all([
+      const [friendRows, characterRows, addedCharacterRows] = await Promise.all([
         listFriends(address),
         listMyCharacters(address),
+        listCharacterFriends(address),
       ])
       if (!cancelled) {
         setFriends(friendRows)
-        setMyCharacters(characterRows)
+        const uniqueCharacters = [...characterRows, ...addedCharacterRows].filter(
+          (row, index, rows) => rows.findIndex((v) => v.id === row.id) === index
+        )
+        setMyCharacters(uniqueCharacters)
       }
     }
     load()

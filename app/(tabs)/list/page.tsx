@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/app-header"
 import { FriendListItem } from "@/components/friend-list-item"
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { listMyCharacters } from "@/lib/characters"
+import { listCharacterFriends } from "@/lib/character-friends"
 import { listFriends } from "@/lib/friends"
 import type { Character } from "@/lib/types"
 import type { UserRow } from "@/lib/users"
@@ -30,13 +31,17 @@ export default function ListPage() {
         }
         return
       }
-      const [friendRows, characterRows] = await Promise.all([
+      const [friendRows, characterRows, addedCharacterRows] = await Promise.all([
         listFriends(address),
         listMyCharacters(address),
+        listCharacterFriends(address),
       ])
       if (!cancelled) {
         setFriends(friendRows)
-        setMyCharacters(characterRows)
+        const uniqueCharacters = [...characterRows, ...addedCharacterRows].filter(
+          (row, index, rows) => rows.findIndex((v) => v.id === row.id) === index
+        )
+        setMyCharacters(uniqueCharacters)
       }
     }
     load()

@@ -1,12 +1,17 @@
-import { UserPlus } from "lucide-react"
+"use client"
+
 import { visibilityLabel, type Character } from "@/lib/types"
-import { ProfileActionButton, ProfileHero } from "./profile-hero"
+import { ProfileHero } from "./profile-hero"
 import { StartChatButton } from "./start-chat-button"
 import { CharacterEditButton } from "./character-edit-button"
+import { AddCharacterButton } from "./add-character-button"
+import { useCurrentUser } from "@/hooks/use-current-user"
 
 // 캐릭터 Profile = 유저 Profile 레이아웃 + '친구 정보' 섹션.
 // hidden / bannedTopics 같은 내부 Settings은 노출하지 않는다.
 export function CharacterProfileView({ character }: { character: Character }) {
+  const { address } = useCurrentUser()
+
   const meta = [
     character.age ? `${character.age}` : null,
     character.job,
@@ -32,11 +37,10 @@ export function CharacterProfileView({ character }: { character: Character }) {
               characterId={character.id}
               characterName={character.display_name}
             />
-            {/* TODO: 그룹 기능(M5) 연동 전까지 비활성 */}
-            <ProfileActionButton
-              icon={UserPlus}
-              label="Add to group"
-              disabled
+            {/* 캐릭터를 리스트에 추가 */}
+            <AddCharacterButton
+              characterId={character.id}
+              ownerId={character.ownerId}
             />
           </>
         }
@@ -78,7 +82,13 @@ export function CharacterProfileView({ character }: { character: Character }) {
         <dl className="space-y-2 rounded-xl bg-grey-100 p-3 text-xs text-grey-600 dark:bg-grey-800 dark:text-grey-300">
           <div className="flex justify-between">
             <dt>Creator</dt>
-            <dd>{character.isOfficial ? "By Bias" : "My characters"}</dd>
+            <dd>
+              {character.isOfficial
+                ? "By Bias"
+                : character.ownerId === address
+                  ? "My Character"
+                  : `${character.ownerId.slice(0, 5)}...${character.ownerId.slice(-4)}`}
+            </dd>
           </div>
           <div className="flex justify-between">
             <dt>Visibility</dt>

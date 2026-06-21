@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server"
 import { MemWalManual } from "@mysten-incubation/memwal/manual"
 import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc"
+import { createHash } from "node:crypto"
 import { listMessages } from "@/lib/rooms"
 import { getUser } from "@/lib/users"
+import {
+  claimSeedWrite,
+  ensureNamespaceState,
+  finalizeSeedWriteFailure,
+  finalizeSeedWriteSuccess,
+} from "@/lib/memwal-namespace-state"
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
 const RECALL_TOP_K = 5
@@ -192,6 +199,16 @@ function toNamespace(
   return `room:${roomId}:char:${characterId}:user:${userAddress}`
 }
 
+function toSessionId(seed: string): number {
+  // 32-bit FNV-1a hash, constrained to positive signed int range.
+  let hash = 0x811c9dc5
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0) & 0x7fffffff
+}
+
 function safeArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.filter(
@@ -281,6 +298,25 @@ async function rememberTurn(
     console.log("remember: ", text)
     const client = getManualClient(accountId)
     await client.rememberManual(text, namespace)
+    return { status: "stored", detail: "" }
+  } catch (error) {
+    manualClientCache.get(accountId)?.client.destroy()
+    manualClientCache.delete(accountId)
+    return {
+      status: "failed",
+      detail: error instanceof Error ? error.message : "unknown",
+    }
+  }
+}
+
+async function writeNamespaceSeed(
+  namespace: string,
+  accountId: string,
+  seedPayload: string
+): Promise<{ status: "stored" | "failed"; detail: string }> {
+  try {
+    const client = getManualClient(accountId)
+    await client.rememberManual(seedPayload, namespace)
     return { status: "stored", detail: "" }
   } catch (error) {
     manualClientCache.get(accountId)?.client.destroy()
@@ -388,14 +424,71 @@ export async function POST(request: Request) {
     }
 
     const namespace = toNamespace(roomId, characterId, userAddress)
+    const sessionId =
+      typeof body.sessionId === "number" && Number.isFinite(body.sessionId)
+        ? Math.trunc(body.sessionId)
+        : toSessionId(namespace)
     const user = await getUser(userAddress)
     const accountId = user?.memwal_account_id?.trim()
+    const persona = buildPersona(characterId, body.character)
+
+    try {
+      await ensureNamespaceState(namespace, sessionId)
+    } catch (error) {
+      console.error("[chat/message] ensureNamespaceState failed:", error)
+    }
+
+    if (accountId) {
+      let claimedSeed = false
+      try {
+        claimedSeed = await claimSeedWrite(namespace, sessionId)
+        if (claimedSeed) {
+          const seedPayload =
+            "[Seed Type]\nnamespace_bootstrap\n\n" +
+            `[Namespace]\n${namespace}\n\n` +
+            "[Character Persona]\n" +
+            persona
+          const seedFingerprint = createHash("sha256")
+            .update(seedPayload)
+            .digest("hex")
+          const seedResult = await writeNamespaceSeed(
+            namespace,
+            accountId,
+            seedPayload
+          )
+          if (seedResult.status === "stored") {
+            await finalizeSeedWriteSuccess(namespace, seedFingerprint, sessionId)
+          } else {
+            await finalizeSeedWriteFailure(namespace, seedResult.detail, sessionId)
+          }
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "unknown"
+        console.error("[chat/message] seed write flow failed:", error)
+        if (claimedSeed) {
+          try {
+            await finalizeSeedWriteFailure(namespace, detail, sessionId)
+          } catch (finalizeError) {
+            console.error(
+              "[chat/message] finalizeSeedWriteFailure failed:",
+              finalizeError
+            )
+          }
+        }
+      }
+    }
+
     const messages = await listMessages(roomId)
     const history = messages
-      .slice(-20)
+      .slice(-30)
       .map((msg) => {
-        if (msg.sender.type === "user") return `user: ${msg.text}`
-        return `assistant: ${msg.text}`
+        if (msg.sender.type === "user") {
+          return `user(${msg.sender.address}): ${msg.text}`
+        }
+        if (msg.sender.characterId === characterId) {
+          return `assistant(self:${characterId}): ${msg.text}`
+        }
+        return `character(${msg.sender.characterId}): ${msg.text}`
       })
       .join("\n")
 
@@ -412,12 +505,14 @@ export async function POST(request: Request) {
       recallDetail = "missing memwal account id"
     }
 
-    const persona = buildPersona(characterId, body.character)
     const recalledBlock = recalled.length
       ? recalled.map((item, idx) => `${idx + 1}. ${item}`).join("\n")
       : "- none"
     const systemPrompt =
       "You are role-playing the character profile below. Stay in-character.\n" +
+      `Your speaker identity is assistant(self:${characterId}).\n` +
+      "Lines starting with character(...) are other participants, not you.\n" +
+      "Never speak for other characters and never merge identities.\n\n" +
       "[Character Persona]\n" +
       `${persona}\n\n` +
       "[Recalled Memories]\n" +
@@ -438,7 +533,7 @@ export async function POST(request: Request) {
         namespace,
         accountId,
         importance,
-        `user: ${text}\nassistant: ${bubbles.join(" | ")}`
+        `user(${userAddress}): ${text}\nassistant(self:${characterId}): ${bubbles.join(" | ")}`
       )
       memwalStatus = remember.status
       memwalDetail = remember.detail

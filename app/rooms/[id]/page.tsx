@@ -22,7 +22,13 @@ import {
   listMessages,
 } from "@/lib/rooms"
 import { getUser, type UserRow } from "@/lib/users"
-import type { Character, Message, Participant, Room, SenderRef } from "@/lib/types"
+import type {
+  Character,
+  Message,
+  Participant,
+  Room,
+  SenderRef,
+} from "@/lib/types"
 import { AppHeader } from "@/components/app-header"
 
 const CHARACTER_BUBBLE_DELAY_MS = 1400
@@ -112,7 +118,9 @@ function pickResponders(input: {
     const tokens = characterNameTokens(participant, characterById)
     return tokens.some((token) => {
       const normalizedToken = normalizeText(token)
-      return normalizedToken.length > 1 && normalizedText.includes(normalizedToken)
+      return (
+        normalizedToken.length > 1 && normalizedText.includes(normalizedToken)
+      )
     })
   })
   if (explicitlyCalled.length) return explicitlyCalled
@@ -177,6 +185,9 @@ export default function RoomPage({
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
+  const [typingCharacterId, setTypingCharacterId] = useState<string | null>(
+    null
+  )
   const [sessionByCharacterId, setSessionByCharacterId] = useState<
     Record<string, number>
   >({})
@@ -370,6 +381,7 @@ export default function RoomPage({
 
       for (const participant of responders) {
         try {
+          setTypingCharacterId(participant.characterId)
           let character = characterById[participant.characterId]
           if (!character) {
             const fetched = await getCharacter(participant.characterId)
@@ -454,10 +466,14 @@ export default function RoomPage({
             }),
           })
           const mjson = await mres.json()
-          if (!mres.ok || !Array.isArray(mjson.bubbles)) continue
+          if (!mres.ok || !Array.isArray(mjson.bubbles)) {
+            setTypingCharacterId(null)
+            continue
+          }
 
           const turnId = crypto.randomUUID()
           const bubbles = mjson.bubbles as string[]
+          setTypingCharacterId(null)
           for (let index = 0; index < bubbles.length; index += 1) {
             await addMessage(
               id,
@@ -472,11 +488,13 @@ export default function RoomPage({
           }
         } catch {
           // 한 캐릭터 생성/응답 실패가 전체 전송을 막지 않도록 한다.
+          setTypingCharacterId(null)
         }
       }
     } catch {
       // bias-chat 미연결(로컬 5001 없음) 등 — 사용자 메시지는 이미 저장됨
     } finally {
+      setTypingCharacterId(null)
       setSending(false)
     }
   }
@@ -741,6 +759,41 @@ export default function RoomPage({
             )
           })
         )}
+        {typingCharacterId ? (
+          <div className="flex max-w-[88%] gap-2">
+            <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
+              {characterById[typingCharacterId]?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={characterById[typingCharacterId]?.imageUrl}
+                  alt={
+                    characterById[typingCharacterId]?.display_name ??
+                    "Character"
+                  }
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div className="flex size-full items-center justify-center text-xs font-semibold text-grey-700 dark:text-grey-100">
+                  {(
+                    characterById[typingCharacterId]?.display_name ?? "C"
+                  ).slice(0, 1)}
+                </div>
+              )}
+            </div>
+            <div className="rounded-2xl rounded-tl-sm bg-grey-100 px-4 py-3 text-sm text-grey-500 dark:bg-grey-800 dark:text-grey-300">
+              <div
+                className="bubble-row flex items-end justify-end gap-2"
+                style={{ animationDelay: `${4 * 0.75}s` }}
+              >
+                <span className="mt-0.5 flex h-5 items-center gap-1">
+                  <span className="dot">•</span>
+                  <span className="dot dot-2">•</span>
+                  <span className="dot dot-3">•</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div ref={bottomRef} />
       </div>
 
@@ -768,6 +821,29 @@ export default function RoomPage({
           </button>
         </div>
       </div>
+
+      <style jsx>{`
+        .dot {
+          animation: typing 1s steps(1, end) infinite;
+        }
+        .dot-2 {
+          animation-delay: 0.12s;
+        }
+        .dot-3 {
+          animation-delay: 0.24s;
+        }
+        @keyframes typing {
+          0%,
+          100% {
+            opacity: 0.25;
+            transform: translateY(0);
+          }
+          50% {
+            opacity: 1;
+            transform: translateY(-1px);
+          }
+        }
+      `}</style>
     </div>
   )
 }
