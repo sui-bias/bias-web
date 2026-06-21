@@ -1,73 +1,89 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, Sparkles } from "lucide-react"
 import { AppHeader } from "@/components/app-header"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { getOfficialCharacters } from "@/lib/characters"
+import type { Character } from "@/lib/types"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { getOrCreateDirectRoom } from "@/lib/rooms"
 
-const PROVIDED_CHARACTERS = [
-  {
-    id: "aria",
-    name: "Aria",
-    desc: "Warm and empathetic — your caring friend",
-    genre: "Slice of Life",
-    color: "from-violet-400 to-purple-600",
-  },
-  {
-    id: "kai",
-    name: "Kai",
-    desc: "Cool and straight-talking senior",
-    genre: "School",
-    color: "from-blue-400 to-cyan-600",
-  },
-  {
-    id: "luna",
-    name: "Luna",
-    desc: "Mysterious and wise fantasy mage",
-    genre: "Fantasy",
-    color: "from-pink-400 to-rose-600",
-  },
-  {
-    id: "sol",
-    name: "Sol",
-    desc: "Bright, energetic idol trainee",
-    genre: "Idol/Ent",
-    color: "from-amber-400 to-orange-500",
-  },
-  {
-    id: "nova",
-    name: "Nova",
-    desc: "Strategic mind and gaming pro",
-    genre: "Gaming",
-    color: "from-green-400 to-teal-600",
-  },
-  {
-    id: "echo",
-    name: "Echo",
-    desc: "Gentle healer who soothes your day",
-    genre: "Healing",
-    color: "from-teal-400 to-emerald-600",
-  },
-] as const
-
-type CharId = (typeof PROVIDED_CHARACTERS)[number]["id"]
+const CARD_COLORS = [
+  "from-violet-400 to-purple-600",
+  "from-amber-400 to-orange-500",
+  "from-slate-500 to-slate-700",
+  "from-pink-400 to-rose-600",
+  "from-indigo-400 to-blue-600",
+  "from-emerald-400 to-teal-600",
+]
 
 export default function CharacterGatePage() {
-  const router = useRouter()
-  const [selected, setSelected] = useState<CharId | null>(null)
+  const { address, loading: userLoading } = useCurrentUser()
 
-  function handleStart() {
-    if (!selected) return
-    // TODO: start 1:1 chat with selected character
-    router.push("/chat")
+  const router = useRouter()
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<string | null>(null)
+
+  const selectedChar = characters.find((c) => c.id === selected)
+
+  useEffect(() => {
+    if (!userLoading && !address) {
+      router.replace("/onboarding")
+    }
+  }, [userLoading, address, router])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      setLoading(true)
+      const next = await getOfficialCharacters()
+
+      if (!alive) return
+      setCharacters(next)
+      setLoading(false)
+    })()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (
+      selected &&
+      !characters.some((character) => character.id === selected)
+    ) {
+      setSelected(null)
+    }
+  }, [characters, selected])
+
+  async function handleStart() {
+    if (!address || !selectedChar) return
+    const roomId = await getOrCreateDirectRoom(
+      address,
+      selectedChar.id, // 내부 캐릭터 ID
+      selectedChar.display_name
+    )
+    router.push(`/rooms/${roomId}`)
+  }
+
+  if (userLoading || !address) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-white dark:bg-grey-900">
+        <div className="size-6 animate-spin rounded-full border-2 border-grey-300 border-t-brand" />
+      </div>
+    )
   }
 
   return (
     <div className="flex min-h-svh flex-col bg-white dark:bg-grey-900">
       {/* Header */}
       <AppHeader
-        className="px-6 pt-10 pb-2"
+        className="px-6 pt-8 pb-2"
         center={
           <>
             <div className="flex items-center gap-2">
@@ -76,12 +92,12 @@ export default function CharacterGatePage() {
                 Provided Characters
               </span>
             </div>
-            <h1 className="mt-2 text-2xl font-bold text-grey-900 dark:text-white">
+            <h1 className="mt-2 text-xl font-bold text-grey-900 dark:text-white">
               Pick a character
               <br />
               to start chatting
             </h1>
-            <p className="mt-1 text-sm text-grey-500">You can switch anytime</p>
+            {/* <p className="mt-1 text-sm text-grey-500">You can switch anytime</p> */}
           </>
         }
       />
@@ -103,30 +119,46 @@ export default function CharacterGatePage() {
 
       {/* Character grid */}
       <div className="grid grid-cols-2 gap-3 px-4 py-4 pb-36">
-        {PROVIDED_CHARACTERS.map((char) => {
+        {characters.map((char, index) => {
           const isSelected = selected === char.id
           return (
             <button
               key={char.id}
               onClick={() => setSelected(char.id)}
               className={cn(
-                "relative flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all active:scale-95",
-                isSelected
-                  ? "border-brand shadow-lg shadow-brand/20"
-                  : "border-transparent"
+                "relative flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all",
+                "active:scale-95",
+                isSelected ? "border-brand shadow-lg shadow-brand/20" : "border"
               )}
             >
               {/* Character image area */}
               <div
                 className={cn(
-                  "aspect-[3/4] w-full bg-gradient-to-br",
-                  char.color
+                  "relative aspect-[3/4] w-full bg-gradient-to-br",
+                  CARD_COLORS[index % CARD_COLORS.length]
                 )}
               >
+                {char.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={char.imageUrl}
+                    alt=""
+                    className="size-full object-cover"
+                  />
+                ) : null}
                 {/* Genre badge */}
-                <div className="absolute top-2 left-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-white">
-                  {char.genre}
-                </div>
+                {char.genre?.length ? (
+                  <div className="absolute top-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+                    {char.genre.map((genre) => (
+                      <span
+                        key={genre}
+                        className="rounded-full bg-black/30 px-2 py-0.5 text-xs text-white"
+                      >
+                        {genre}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 {/* Selection check */}
                 {isSelected && (
                   <div className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-full bg-brand">
@@ -138,36 +170,36 @@ export default function CharacterGatePage() {
               {/* Character info */}
               <div
                 className={cn(
-                  "bg-white p-3 transition-colors dark:bg-grey-800",
-                  isSelected && "bg-brand-lightest dark:bg-grey-800"
+                  "bg-white p-3 transition-colors dark:bg-grey-800"
                 )}
               >
                 <p className="text-sm font-bold text-grey-900 dark:text-white">
-                  {char.name}
+                  {char.display_name}
                 </p>
                 <p className="mt-0.5 line-clamp-2 text-xs text-grey-500 dark:text-grey-400">
-                  {char.desc}
+                  {char.intro}
                 </p>
               </div>
             </button>
           )
         })}
+        {!loading && characters.length === 0 ? (
+          <p className="col-span-2 rounded-xl border border-dashed border-grey-300 px-4 py-8 text-center text-sm text-grey-500 dark:border-grey-700 dark:text-grey-400">
+            Failed to load official characters.
+          </p>
+        ) : null}
       </div>
 
       {/* Bottom CTA */}
-      <div className="fixed right-0 bottom-0 left-0 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-10 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
-        <button
+      <div className="fixed right-0 bottom-0 left-0 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-8 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
+        <Button
           onClick={handleStart}
           disabled={!selected}
-          className={cn(
-            "flex h-14 w-full items-center justify-center rounded-xl text-base font-semibold text-white transition-opacity",
-            selected
-              ? "bg-brand active:opacity-80"
-              : "bg-grey-300 dark:bg-grey-700"
-          )}
+          size="xl"
+          className="w-full"
         >
           {selected ? "Start chatting" : "Select a character"}
-        </button>
+        </Button>
       </div>
     </div>
   )

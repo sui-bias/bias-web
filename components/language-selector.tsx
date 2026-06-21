@@ -5,19 +5,19 @@ import * as React from "react"
 const STORAGE_KEY = "app-language"
 
 const OPTIONS = [
-  { value: "ko", label: "한국어", description: "앱 기본 언어를 한국어로 표시" },
   { value: "en", label: "English", description: "Use English as app language" },
 ] as const
 
 type LanguageValue = (typeof OPTIONS)[number]["value"]
 
 export function LanguageSelector() {
-  const [language, setLanguage] = React.useState<LanguageValue>("ko")
+  const [language, setLanguage] = React.useState<LanguageValue>("en")
 
   React.useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY)
 
-    if (saved === "ko" || saved === "en") {
+    if (saved === "en") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLanguage(saved)
     }
   }, [])
@@ -51,7 +51,7 @@ export function LanguageSelector() {
                 {option.label}
               </p>
               {selected ? (
-                <span className="text-xs font-semibold text-brand">선택됨</span>
+                <span className="text-xs font-semibold text-brand">Selected</span>
               ) : null}
             </div>
             <p className="mt-1 text-xs text-grey-500 dark:text-grey-400">

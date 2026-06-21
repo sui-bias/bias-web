@@ -1,32 +1,40 @@
-import Link from "next/link"
-import { Plus, Search } from "lucide-react"
-import { AppHeader } from "@/components/app-header"
+"use client"
 
-const MY_CHARACTERS = [
-  {
-    id: "haneul",
-    name: "하늘",
-    description: "다정하고 공감 잘해주는 친구 캐릭터",
-    genre: "Healing",
-    color: "from-violet-400 to-indigo-500",
-  },
-  {
-    id: "mira",
-    name: "미라",
-    description: "차분하게 조언해주는 현실 조력자",
-    genre: "Daily",
-    color: "from-sky-400 to-cyan-500",
-  },
-  {
-    id: "reo",
-    name: "레오",
-    description: "열정 넘치고 에너지 주는 동기부여형",
-    genre: "Coach",
-    color: "from-amber-400 to-orange-500",
-  },
-] as const
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { Plus } from "lucide-react"
+import { AppHeader } from "@/components/app-header"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { listMyCharacters } from "@/lib/characters"
+import type { Character } from "@/lib/types"
+
+const CARD_COLORS = [
+  "from-violet-400 to-indigo-500",
+  "from-sky-400 to-cyan-500",
+  "from-amber-400 to-orange-500",
+  "from-emerald-400 to-teal-500",
+]
 
 export default function CharacterPage() {
+  const { address } = useCurrentUser()
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const rows = address ? await listMyCharacters(address) : []
+      if (!cancelled) {
+        setCharacters(rows)
+        setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [address])
+
   return (
     <div className="space-y-4 pt-6">
       <AppHeader
@@ -41,7 +49,7 @@ export default function CharacterPage() {
           <div className="flex items-center gap-1">
             <Link href="/character/create">
               <button
-                aria-label="Add friend"
+                aria-label="Create a character"
                 className="flex size-9 items-center justify-center rounded-full bg-brand text-white transition-colors"
               >
                 <Plus size={20} />
@@ -51,26 +59,41 @@ export default function CharacterPage() {
         }
       />
 
+      {!loading && characters.length === 0 ? (
+        <p className="px-4 pt-4 text-sm text-grey-500 dark:text-grey-400">
+          {address
+            ? "No characters yet. Tap + to create your first."
+            : "Connect your wallet to see your characters."}
+        </p>
+      ) : null}
+
       <section className="grid grid-cols-2 gap-3 px-4 pb-6">
-        {MY_CHARACTERS.map((character) => (
+        {characters.map((character, index) => (
           <Link
             key={character.id}
             href={`/character/${character.id}`}
             className="overflow-hidden rounded-xl border border-grey-200 transition-transform active:scale-95 dark:border-grey-800"
           >
             <div
-              className={`relative aspect-square bg-gradient-to-br ${character.color}`}
+              className={`relative aspect-square bg-gradient-to-br ${
+                CARD_COLORS[index % CARD_COLORS.length]
+              }`}
             >
-              <span className="absolute top-2 left-2 rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-medium text-white">
-                {character.genre}
-              </span>
+              {character.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={character.imageUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : null}
             </div>
             <div className="bg-white p-3 dark:bg-grey-900">
               <p className="text-sm font-bold text-grey-900 dark:text-white">
-                {character.name}
+                {character.display_name}
               </p>
               <p className="mt-1 line-clamp-2 text-xs text-grey-500 dark:text-grey-400">
-                {character.description}
+                {character.intro}
               </p>
             </div>
           </Link>
@@ -85,7 +108,7 @@ export default function CharacterPage() {
           </div>
           <p className="mt-3 text-sm font-semibold text-brand">Create</p>
           <p className="mt-1 text-xs text-grey-600 dark:text-grey-300">
-            새 캐릭터 만들기
+            Create a character
           </p>
         </Link>
       </section>

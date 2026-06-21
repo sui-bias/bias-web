@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { ChangeEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Camera } from "lucide-react"
+import { useCurrentAccount } from "@mysten/dapp-kit"
 import { cn } from "@/lib/utils"
 import { AppHeader } from "@/components/app-header"
 import { Button } from "@/components/ui/button"
+import { isUsernameAvailable, saveProfile } from "@/lib/users"
+import { supabase } from "@/lib/supabase"
 
 // ── Constants ─────────────────────────────────────────────────
 const GENRES = [
@@ -29,6 +32,8 @@ const LANG_OPTIONS = [
   { value: "en", label: "English" },
   { value: "kr", label: "한국어" },
 ] as const
+const PROFILE_IMAGE_BUCKET = "bias-storage"
+const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 
 // ── Form state type ───────────────────────────────────────────
 interface ProfileForm {
@@ -56,8 +61,16 @@ const DEFAULT_FORM: ProfileForm = {
 // ── Component ─────────────────────────────────────────────────
 export default function ProfilePage() {
   const router = useRouter()
+  const currentAccount = useCurrentAccount()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<ProfileForm>(DEFAULT_FORM)
+  const [saving, setSaving] = useState(false)
+  const [stepError, setStepError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
+  const [profileImagePreviewUrl, setProfileImagePreviewUrl] = useState<
+    string | null
+  >(null)
 
   function toggleGenre(genre: string) {
     setForm((f) => ({
@@ -78,32 +91,167 @@ export default function ProfilePage() {
     return false
   }
 
-  function handleNext() {
+  function getStepError(currentStep: number): string | null {
+    if (currentStep === 1) {
+      if (form.displayName.trim().length === 0)
+        return "Nickname is required."
+      if (form.nickname.trim().length === 0) return "ID is required."
+      return null
+    }
+    if (currentStep === 2) {
+      if (form.genres.length === 0) return "Please select at least one genre."
+      if (!form.ageGroup) return "Please select your age group."
+      return null
+    }
+    if (currentStep === 3 && !form.agreePrivacy) {
+      return "You must agree to the required privacy policy."
+    }
+    return null
+  }
+
+  useEffect(() => {
+    setStepError(null)
+  }, [step, form])
+
+  useEffect(() => {
+    return () => {
+      if (profileImagePreviewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(profileImagePreviewUrl)
+      }
+    }
+  }, [profileImagePreviewUrl])
+
+  function handleProfileImagePick(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      setStepError("이미지 파일만 업로드할 수 있습니다.")
+      return
+    }
+    if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
+      setStepError("이미지는 5MB 이하만 업로드할 수 있습니다.")
+      return
+    }
+
+    setStepError(null)
+    const nextPreviewUrl = URL.createObjectURL(file)
+    setProfileImageFile(file)
+    setProfileImagePreviewUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev)
+      return nextPreviewUrl
+    })
+  }
+
+  async function uploadProfileImage(address: string, file: File) {
+    const extFromName = file.name.split(".").pop()?.toLowerCase()
+    const extension =
+      extFromName && /^[a-z0-9]+$/.test(extFromName) ? extFromName : "jpg"
+    const path = `profiles/avatar/${address}/${Date.now()}-${crypto.randomUUID()}.${extension}`
+
+    const { error } = await supabase.storage
+      .from(PROFILE_IMAGE_BUCKET)
+      .upload(path, file, { cacheControl: "3600", upsert: true })
+    if (error) throw new Error(error.message)
+
+    const { data } = supabase.storage.from(PROFILE_IMAGE_BUCKET).getPublicUrl(path)
+    if (!data.publicUrl) throw new Error("프로필 이미지 URL을 생성하지 못했습니다.")
+    return data.publicUrl
+  }
+
+  async function handleNext() {
+    const validationError = getStepError(step)
+    if (validationError) {
+      setStepError(validationError)
+      return
+    }
+
+    setStepError(null)
+    setSaveError(null)
+
+    if (step === 1) {
+      setSaving(true)
+      try {
+        const available = await isUsernameAvailable(
+          form.nickname,
+          currentAccount?.address
+        )
+        if (!available) {
+          setStepError("ID is already taken. Please choose another one.")
+          return
+        }
+        setStep(2)
+      } catch {
+        setStepError("Failed to validate username. Please try again.")
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     if (step < STEP_COUNT) {
       setStep((s) => s + 1)
-    } else {
-      // TODO: save profile via API
-      router.push("/onboarding/character")
+      return
+    }
+
+    // 마지막 단계: 지갑 주소를 PK로 프로필을 Supabase에 저장 (= 회원가입 완료)
+    const address = currentAccount?.address
+    if (!address) {
+      setSaveError("Wallet not connected. Please reconnect.")
+      router.replace("/onboarding")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const uploadedProfileImageUrl =
+        profileImageFile ?
+          await uploadProfileImage(address, profileImageFile)
+        : undefined
+
+      await saveProfile(address, {
+        display_name: form.displayName,
+        image_url: uploadedProfileImageUrl,
+        username: form.nickname,
+        genres: form.genres,
+        language: form.language,
+        age_group: form.ageGroup,
+        visibility: form.visibility,
+        agree_privacy: form.agreePrivacy,
+        agree_marketing: form.agreeMarketing,
+      })
+      router.push("/onboarding/account")
+    } catch (e) {
+      if (e instanceof Error && e.message === "USERNAME_TAKEN") {
+        setSaveError("ID is already taken. Please choose another one.")
+      } else {
+        setSaveError("Failed to save profile. Please try again.")
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-white dark:bg-grey-900">
+    <div className="space-y-4 pt-6">
       {/* Header */}
       <AppHeader
-        className="px-4 pt-10 pb-4"
         left={
           <button
             onClick={() => (step > 1 ? setStep((s) => s - 1) : router.back())}
-            className="flex size-10 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-300 dark:hover:bg-grey-800"
+            className="flex size-9 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-300 dark:hover:bg-grey-800"
             aria-label="Back"
           >
-            <ChevronLeft size={22} />
+            <ChevronLeft size={20} />
           </button>
         }
         title="Set Up Profile"
-        titleClassName="text-lg"
-        right={<span className="text-sm text-grey-400">{step}/{STEP_COUNT}</span>}
+        right={
+          <span className="text-sm text-grey-400">
+            {step}/{STEP_COUNT}
+          </span>
+        }
       />
 
       {/* Step progress bar */}
@@ -121,7 +269,14 @@ export default function ProfilePage() {
 
       {/* Step content */}
       <div className="flex-1 overflow-y-auto px-6 pb-36">
-        {step === 1 && <Step1 form={form} setForm={setForm} />}
+        {step === 1 && (
+          <Step1
+            form={form}
+            setForm={setForm}
+            profileImagePreviewUrl={profileImagePreviewUrl}
+            onPickProfileImage={handleProfileImagePick}
+          />
+        )}
         {step === 2 && (
           <Step2 form={form} setForm={setForm} toggleGenre={toggleGenre} />
         )}
@@ -129,19 +284,24 @@ export default function ProfilePage() {
       </div>
 
       {/* Bottom CTA */}
-      <div className="fixed right-0 bottom-0 left-0 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-10 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
+      <div className="fixed right-0 bottom-0 left-0 space-y-1 border-t border-grey-100 bg-white/90 px-6 pt-4 pb-8 backdrop-blur dark:border-grey-800 dark:bg-grey-900/90">
+        {(stepError ?? saveError) && (
+          <p className="text-center text-xs text-red-600 dark:text-red-400">
+            {stepError ?? saveError}
+          </p>
+        )}
         <Button
           onClick={handleNext}
-          disabled={!canNext()}
+          disabled={saving}
           size="xl"
           className={cn(
             "w-full",
-            canNext()
+            canNext() && !saving
               ? "bg-brand active:opacity-80"
               : "bg-grey-300 dark:bg-grey-700"
           )}
         >
-          {step < STEP_COUNT ? "Continue" : "Done"}
+          {saving ? "Saving..." : step < STEP_COUNT ? "Continue" : "Done"}
         </Button>
       </div>
     </div>
@@ -152,9 +312,13 @@ export default function ProfilePage() {
 function Step1({
   form,
   setForm,
+  profileImagePreviewUrl,
+  onPickProfileImage,
 }: {
   form: ProfileForm
   setForm: React.Dispatch<React.SetStateAction<ProfileForm>>
+  profileImagePreviewUrl: string | null
+  onPickProfileImage: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
     <div className="space-y-6">
@@ -169,26 +333,47 @@ function Step1({
 
       {/* Profile image */}
       <div className="flex justify-center">
-        <button className="group relative flex size-20 items-center justify-center overflow-hidden rounded-full bg-grey-100 dark:bg-grey-800">
-          <Camera
-            size={24}
-            className="text-grey-400 transition-colors group-hover:text-grey-600"
+        <div>
+          <input
+            id="profile-image-input"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onPickProfileImage}
           />
-          <div className="absolute inset-0 rounded-full ring-2 ring-grey-200 transition-all group-hover:ring-brand/50 dark:ring-grey-700" />
-        </button>
+          <label
+            htmlFor="profile-image-input"
+            className="group relative flex size-20 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-grey-100 dark:bg-grey-800"
+          >
+            {profileImagePreviewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profileImagePreviewUrl}
+                alt="Profile preview"
+                className="size-full object-cover"
+              />
+            ) : (
+              <Camera
+                size={24}
+                className="text-grey-400 transition-colors group-hover:text-grey-600"
+              />
+            )}
+            <div className="absolute inset-0 rounded-full ring-2 ring-grey-200 transition-all group-hover:ring-brand/50 dark:ring-grey-700" />
+          </label>
+        </div>
       </div>
 
-      {/* Display name */}
+      {/* Nickname (display_name) */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-grey-700 dark:text-grey-300">
-          Display name <span className="text-brand">*</span>
+          Nickname <span className="text-brand">*</span>
         </label>
         <input
           value={form.displayName}
           onChange={(e) =>
             setForm((f) => ({ ...f, displayName: e.target.value }))
           }
-          placeholder="Name visible to others"
+          placeholder="Nickname shown to others"
           maxLength={20}
           className={cn(
             "h-12 w-full rounded-xl border border-grey-200 bg-grey-50 px-4 text-sm text-grey-900 placeholder-grey-400 transition-colors outline-none",
@@ -201,10 +386,10 @@ function Step1({
         </p>
       </div>
 
-      {/* Nickname */}
+      {/* ID (username) */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-grey-700 dark:text-grey-300">
-          Username <span className="text-brand">*</span>
+          ID <span className="text-brand">*</span>
         </label>
         <div
           className={cn(
@@ -252,7 +437,7 @@ function Step2({
           Your preferences
         </p>
         <p className="mt-1 text-sm text-grey-500">
-          We'll use this to recommend characters
+          We&apos;ll use this to recommend characters
         </p>
       </div>
 

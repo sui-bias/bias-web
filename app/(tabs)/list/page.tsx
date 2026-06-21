@@ -1,56 +1,122 @@
-import { Search, Settings, UserPlus } from "lucide-react"
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { Search, Settings, UserPlus, X } from "lucide-react"
 import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
-import { FriendListItem, type FriendKind } from "@/components/friend-list-item"
-
-type FriendItem = {
-  id: string
-  name: string
-  description?: string
-  kind: FriendKind
-}
-
-const FRIENDS: FriendItem[] = [
-  { id: "101", name: "Diana", kind: "user" },
-  { id: "102", name: "Eric", kind: "user" },
-  { id: "103", name: "Bob", kind: "character" },
-  { id: "104", name: "Aria", description: "Online now", kind: "character" },
-  { id: "105", name: "Brian", kind: "user" },
-  { id: "106", name: "Luna", description: "New Character", kind: "character" },
-]
-
-const SORTED_FRIENDS = [...FRIENDS].sort((a, b) =>
-  a.name.localeCompare(b.name, ["ko", "en"], { sensitivity: "base" })
-)
+import { FriendListItem } from "@/components/friend-list-item"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { listMyCharacters } from "@/lib/characters"
+import { listCharacterFriends } from "@/lib/character-friends"
+import { listFriends } from "@/lib/friends"
+import type { Character } from "@/lib/types"
+import type { UserRow } from "@/lib/users"
 
 export default function ListPage() {
+  const { address, user, loading } = useCurrentUser()
+  const displayName = user?.display_name ?? (loading ? "…" : "Guest")
+
+  const [friends, setFriends] = useState<UserRow[]>([])
+  const [myCharacters, setMyCharacters] = useState<Character[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState("")
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!address) {
+        if (!cancelled) {
+          setFriends([])
+          setMyCharacters([])
+        }
+        return
+      }
+      const [friendRows, characterRows, addedCharacterRows] = await Promise.all([
+        listFriends(address),
+        listMyCharacters(address),
+        listCharacterFriends(address),
+      ])
+      if (!cancelled) {
+        setFriends(friendRows)
+        const uniqueCharacters = [...characterRows, ...addedCharacterRows].filter(
+          (row, index, rows) => rows.findIndex((v) => v.id === row.id) === index
+        )
+        setMyCharacters(uniqueCharacters)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [address])
+
+  const q = query.trim().toLowerCase()
+  const listItems = useMemo(() => {
+    const friendItems = friends.map((f) => ({
+      key: `user:${f.address}`,
+      display_name: f.display_name,
+      intro: `@${f.username}`,
+      imageUrl: f.image_url ?? undefined,
+      kind: "user" as const,
+      href: `/list/${f.address}`,
+    }))
+    const characterItems = myCharacters.map((c) => ({
+      key: `character:${c.id}`,
+      display_name: c.display_name,
+      intro: c.intro,
+      imageUrl: c.imageUrl,
+      kind: "character" as const,
+      href: `/list/${c.id}`,
+    }))
+
+    return [...friendItems, ...characterItems]
+      .sort((a, b) => a.display_name.localeCompare(b.display_name))
+      .filter((item) =>
+        q ? item.display_name.toLowerCase().includes(q) : true
+      )
+  }, [friends, myCharacters, q])
+
   return (
     <div className="space-y-4 pt-6">
       <AppHeader
         left={
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-yellow-300 text-sm font-semibold text-grey-900">
-              9
+            <div className="flex size-9 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-semibold text-grey-500 dark:bg-grey-700 dark:text-grey-300">
+              {user?.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.image_url}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                displayName.slice(0, 1)
+              )}
             </div>
             <p className="text-xl font-bold text-grey-900 dark:text-white">
-              9oodam
+              {displayName}
             </p>
           </div>
         }
         right={
           <div className="flex items-center gap-1">
             <button
-              aria-label="Search friends"
+              aria-label="Search characters"
+              onClick={() => {
+                setSearchOpen((v) => !v)
+                setQuery("")
+              }}
               className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
             >
-              <Search size={20} />
+              {searchOpen ? <X size={20} /> : <Search size={20} />}
             </button>
-            <button
+            <Link
+              href="/list/search"
               aria-label="Add friend"
               className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
             >
               <UserPlus size={20} />
-            </button>
+            </Link>
             <Link
               href="/settings"
               aria-label="Open settings"
@@ -62,21 +128,39 @@ export default function ListPage() {
         }
       />
 
+      {searchOpen ? (
+        <div className="px-4">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name"
+            className="h-10 w-full rounded-xl border border-grey-200 bg-grey-100 px-3 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
+          />
+        </div>
+      ) : null}
+
       <section className="border-t border-grey-200 p-4 dark:border-grey-800">
         <div className="text-sm font-semibold text-grey-900 dark:text-white">
-          Friends
+          {q ? "Results" : "Friends"}
         </div>
         <ul className="divide-y divide-grey-100 dark:divide-grey-800">
-          {SORTED_FRIENDS.map((friend) => (
+          {listItems.map((item) => (
             <FriendListItem
-              key={friend.id}
-              name={friend.name}
-              description={friend.description}
-              kind={friend.kind}
-              href={`/list/${friend.id}`}
+              key={item.key}
+              display_name={item.display_name}
+              intro={item.intro}
+              imageUrl={item.imageUrl}
+              kind={item.kind}
+              href={item.href}
             />
           ))}
         </ul>
+        {q && listItems.length === 0 ? (
+          <p className="py-6 text-center text-sm text-grey-500 dark:text-grey-400">
+            No results found.
+          </p>
+        ) : null}
       </section>
     </div>
   )

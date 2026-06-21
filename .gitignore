@@ -30,7 +30,14 @@ pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal docs
+/docs/DEVELOPMENT.md
+
+# Claude Code 개인 설정
+.claude/settings.local.json
