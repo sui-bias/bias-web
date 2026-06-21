@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Search, Settings, UserPlus } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Search, Settings, UserPlus, X } from "lucide-react"
 import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { FriendListItem } from "@/components/friend-list-item"
@@ -18,9 +18,11 @@ const CHARACTERS = [...MOCK_CHARACTERS].sort((a, b) =>
 
 export default function ListPage() {
   const { address, user, loading } = useCurrentUser()
-  const displayName = user?.display_name ?? (loading ? "…" : "게스트")
+  const displayName = user?.display_name ?? (loading ? "…" : "Guest")
 
   const [friends, setFriends] = useState<UserRow[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState("")
 
   useEffect(() => {
     let cancelled = false
@@ -34,13 +36,31 @@ export default function ListPage() {
     }
   }, [address])
 
+  const q = query.trim().toLowerCase()
+  const characters = useMemo(
+    () =>
+      q
+        ? CHARACTERS.filter((c) => c.display_name.toLowerCase().includes(q))
+        : CHARACTERS,
+    [q]
+  )
+
   return (
     <div className="space-y-4 pt-6">
       <AppHeader
         left={
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-yellow-300 text-sm font-semibold text-grey-900">
-              {displayName.slice(0, 1)}
+            <div className="flex size-9 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-semibold text-grey-500 dark:bg-grey-700 dark:text-grey-300">
+              {user?.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.image_url}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                displayName.slice(0, 1)
+              )}
             </div>
             <p className="text-xl font-bold text-grey-900 dark:text-white">
               {displayName}
@@ -50,10 +70,14 @@ export default function ListPage() {
         right={
           <div className="flex items-center gap-1">
             <button
-              aria-label="Search friends"
+              aria-label="Search characters"
+              onClick={() => {
+                setSearchOpen((v) => !v)
+                setQuery("")
+              }}
               className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
             >
-              <Search size={20} />
+              {searchOpen ? <X size={20} /> : <Search size={20} />}
             </button>
             <Link
               href="/list/search"
@@ -73,23 +97,35 @@ export default function ListPage() {
         }
       />
 
+      {searchOpen ? (
+        <div className="px-4">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by character name"
+            className="h-10 w-full rounded-xl border border-grey-200 bg-grey-100 px-3 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
+          />
+        </div>
+      ) : null}
+
       <section className="border-t border-grey-200 p-4 dark:border-grey-800">
         <div className="text-sm font-semibold text-grey-900 dark:text-white">
-          Friends
+          {q ? "Characters" : "Friends"}
         </div>
         <ul className="divide-y divide-grey-100 dark:divide-grey-800">
-          {/* 실제 친구(유저) */}
-          {friends.map((f) => (
-            <FriendListItem
-              key={f.address}
-              display_name={f.display_name}
-              intro={`@${f.username}`}
-              kind="user"
-              href={`/list/${f.address}`}
-            />
-          ))}
-          {/* 캐릭터 */}
-          {CHARACTERS.map((c) => (
+          {/* 검색 중엔 캐릭터만 (이름 검색) */}
+          {!q &&
+            friends.map((f) => (
+              <FriendListItem
+                key={f.address}
+                display_name={f.display_name}
+                intro={`@${f.username}`}
+                kind="user"
+                href={`/list/${f.address}`}
+              />
+            ))}
+          {characters.map((c) => (
             <FriendListItem
               key={c.id}
               display_name={c.display_name}
@@ -100,6 +136,11 @@ export default function ListPage() {
             />
           ))}
         </ul>
+        {q && characters.length === 0 ? (
+          <p className="py-6 text-center text-sm text-grey-500 dark:text-grey-400">
+            No characters found.
+          </p>
+        ) : null}
       </section>
     </div>
   )

@@ -93,7 +93,7 @@ export function CharacterChatRoom({
         setMessages(toUiMessages(payload.messages))
       } catch (e) {
         if (cancelled) return
-        setError(e instanceof Error ? e.message : "세션을 불러오지 못했습니다.")
+        setError(e instanceof Error ? e.message : "Failed to load session.")
       } finally {
         if (!cancelled) {
           setIsBooting(false)
@@ -166,7 +166,7 @@ export function CharacterChatRoom({
         ])
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "메시지 전송에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Failed to send message.")
     } finally {
       setIsSending(false)
     }
@@ -178,7 +178,7 @@ export function CharacterChatRoom({
         left={
           <Link
             href="/chat"
-            aria-label="채팅 목록으로 돌아가기"
+            aria-label="Back to chats"
             className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
           >
             <ArrowLeft size={20} />
@@ -196,7 +196,7 @@ export function CharacterChatRoom({
         }
         right={
           <button
-            aria-label="채팅 옵션"
+            aria-label="Chat options"
             className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
           >
             <MoreVertical size={18} />
@@ -207,7 +207,7 @@ export function CharacterChatRoom({
       <section className="flex-1 space-y-3 overflow-y-auto px-4 py-4 pb-24">
         <div className="flex justify-center">
           <span className="rounded-full bg-grey-100 px-3 py-1 text-xs text-grey-500 dark:bg-grey-800 dark:text-grey-400">
-            오늘
+            Today
           </span>
         </div>
 
@@ -234,12 +234,12 @@ export function CharacterChatRoom({
 
         {isBooting ? (
           <p className="text-center text-xs text-grey-500 dark:text-grey-400">
-            세션을 준비하고 있어요...
+            Preparing your session…
           </p>
         ) : null}
         {/* {isSending ? (
           <p className="text-center text-xs text-grey-500 dark:text-grey-400">
-            답장을 생성 중이에요...
+            Generating a reply…
           </p>
         ) : null} */}
         {error ? (
@@ -267,7 +267,7 @@ export function CharacterChatRoom({
           />
           <button
             type="submit"
-            aria-label="메시지 전송"
+            aria-label="Send message"
             disabled={!canSend}
             className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-white transition-opacity active:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
           >

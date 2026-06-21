@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ChevronDown, ImagePlus, Trash2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCurrentUser } from "@/hooks/use-current-user"
+import { resizeAndUpload } from "@/lib/storage"
 import {
   createCharacter,
   deleteCharacter,
@@ -96,21 +97,22 @@ export function CharacterForm({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [imgUploading, setImgUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const errors = useMemo(() => {
     const next: Record<string, string> = {}
-    if (!name.trim()) next.name = "이름을 입력해 주세요."
-    else if (name.trim().length > 20) next.name = "이름은 20자 이내여야 합니다."
-    if (!intro.trim()) next.intro = "한 줄 소개를 입력해 주세요."
+    if (!name.trim()) next.name = "Please enter a name."
+    else if (name.trim().length > 20) next.name = "Name must be 20 characters or fewer."
+    if (!intro.trim()) next.intro = "Please enter a short intro."
     else if (intro.trim().length > 40)
-      next.intro = "한 줄 소개는 40자 이내여야 합니다."
-    if (!traits.trim()) next.traits = "성격을 입력해 주세요."
+      next.intro = "Intro must be 40 characters or fewer."
+    if (!traits.trim()) next.traits = "Please enter a personality."
     return next
   }, [name, intro, traits])
 
   const hasErrors = Object.keys(errors).length > 0
-  const canSubmit = !hasErrors && !blockedReason
+  const canSubmit = !hasErrors && !blockedReason && !imgUploading
 
   function buildDraft(): CharacterDraft {
     return {
@@ -144,7 +146,7 @@ export function CharacterForm({
     setSubmitted(true)
     if (!canSubmit || saving) return
     if (!address) {
-      setError("캐릭터 저장은 지갑 연결 후 가능합니다.")
+      setError("Connect your wallet to save a character.")
       return
     }
 
@@ -161,41 +163,32 @@ export function CharacterForm({
       router.refresh()
     } catch (e) {
       setSaving(false)
-      setError(e instanceof Error ? e.message : "저장에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Failed to save.")
     }
   }
 
-  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageChange(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
     const file = event.target.files?.[0]
     if (!file) return
-    // 스토리지 버킷 없이 동작하도록, 이미지를 작게 줄여 data URL 로 저장한다.
-    // (DB image_url 컬럼에 그대로 들어가 어디서든 렌더됨)
-    const reader = new FileReader()
-    reader.onload = () => {
-      const img = new Image()
-      img.onload = () => {
-        const MAX = 384
-        const scale = Math.min(1, MAX / Math.max(img.width, img.height))
-        const w = Math.round(img.width * scale)
-        const h = Math.round(img.height * scale)
-        const canvas = document.createElement("canvas")
-        canvas.width = w
-        canvas.height = h
-        const ctx = canvas.getContext("2d")
-        if (!ctx) return
-        ctx.drawImage(img, 0, 0, w, h)
-        setImageUrl(canvas.toDataURL("image/jpeg", 0.8))
-      }
-      img.src = reader.result as string
+    setImgUploading(true)
+    setError(null)
+    try {
+      const url = await resizeAndUpload(file, "characters")
+      setImageUrl(url)
+    } catch {
+      setError("Failed to upload image.")
+    } finally {
+      setImgUploading(false)
     }
-    reader.readAsDataURL(file)
   }
 
   async function handleDelete() {
     if (!characterId) return
     if (
       !window.confirm(
-        "이 캐릭터를 삭제할까요? 진행 중인 방에는 삭제 안내가 표시됩니다."
+        "Delete this character? Active rooms will show a deletion notice."
       )
     ) {
       return
@@ -208,27 +201,31 @@ export function CharacterForm({
       router.refresh()
     } catch (e) {
       setSaving(false)
-      setError(e instanceof Error ? e.message : "삭제에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Failed to delete.")
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 px-4 pb-40">
-      {/* 프로필 */}
-      <SectionImage imageUrl={imageUrl} onChange={handleImageChange} />
+      {/* Profile */}
+      <SectionImage
+        imageUrl={imageUrl}
+        onChange={handleImageChange}
+        uploading={imgUploading}
+      />
 
-      <Section title="프로필">
-        <Field label="이름" required error={submitted ? errors.name : undefined}>
+      <Section title="Profile">
+        <Field label="Name" required error={submitted ? errors.name : undefined}>
           <input
             className={INPUT}
-            placeholder="캐릭터 이름"
+            placeholder="Character name"
             maxLength={20}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="나이">
+          <Field label="Age">
             <input
               type="number"
               inputMode="numeric"
@@ -238,55 +235,55 @@ export function CharacterForm({
               onChange={(e) => setAge(e.target.value)}
             />
           </Field>
-          <Field label="직업">
+          <Field label="Job">
             <input
               className={INPUT}
-              placeholder="대학생"
+              placeholder="College student"
               value={job}
               onChange={(e) => setJob(e.target.value)}
             />
           </Field>
         </div>
         <Field
-          label="한 줄 소개"
+          label="Short intro"
           required
-          hint="프로필 상태 메시지로 보여집니다."
+          hint="Shown as your profile status message."
           error={submitted ? errors.intro : undefined}
         >
           <input
             className={INPUT}
-            placeholder="밤마다 동네를 지키는 평범한 대학생"
+            placeholder="An ordinary student who watches over the neighborhood at night"
             maxLength={40}
             value={intro}
             onChange={(e) => setIntro(e.target.value)}
           />
         </Field>
-        <Field label="서사 / 배경 스토리">
+        <Field label="Story / background">
           <textarea
             rows={3}
             className={TEXTAREA}
-            placeholder="캐릭터의 서사를 적어주세요."
+            placeholder="Write the character's backstory."
             value={narrative}
             onChange={(e) => setNarrative(e.target.value)}
           />
         </Field>
       </Section>
 
-      {/* 기본 설정 */}
-      <Section title="기본 설정">
-        <Field label="출신 / 배경">
+      {/* Basics */}
+      <Section title="Basics">
+        <Field label="Origin / background">
           <textarea
             rows={2}
             className={TEXTAREA}
-            placeholder="뉴욕 퀸스에서 자랐고, 지금은 대학생."
+            placeholder="Grew up in Queens, now a college student."
             value={background}
             onChange={(e) => setBackground(e.target.value)}
           />
         </Field>
-        <Field label="가족">
+        <Field label="Family">
           <input
             className={INPUT}
-            placeholder="메이 숙모와 함께 산다."
+            placeholder="Lives with Aunt May."
             value={family}
             onChange={(e) => setFamily(e.target.value)}
           />
@@ -298,7 +295,7 @@ export function CharacterForm({
               value={mbti}
               onChange={(e) => setMbti(e.target.value)}
             >
-              <option value="">선택 안 함</option>
+              <option value="">None</option>
               {MBTI_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {type}
@@ -306,7 +303,7 @@ export function CharacterForm({
               ))}
             </select>
           </Field>
-          <Field label="키">
+          <Field label="Height">
             <input
               className={INPUT}
               placeholder="178cm"
@@ -321,7 +318,7 @@ export function CharacterForm({
           onClick={() => setAdvancedOpen((v) => !v)}
           className="flex items-center gap-1 text-xs font-semibold text-grey-500 dark:text-grey-400"
         >
-          고급 설정
+          Advanced
           <ChevronDown
             size={14}
             className={cn("transition-transform", advancedOpen && "rotate-180")}
@@ -329,15 +326,15 @@ export function CharacterForm({
         </button>
         {advancedOpen ? (
           <Field
-            label="모국어 (말투 뉘앙스)"
-            hint="출력 언어와 별개로 캐릭터의 말투 결을 정합니다."
+            label="Native language (voice nuance)"
+            hint="Sets speech nuance, separate from output language."
           >
             <select
               className={cn(INPUT, "appearance-none")}
               value={nativeLanguage}
               onChange={(e) => setNativeLanguage(e.target.value)}
             >
-              <option value="">선택 안 함</option>
+              <option value="">None</option>
               {NATIVE_LANGUAGE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -348,104 +345,104 @@ export function CharacterForm({
         ) : null}
       </Section>
 
-      {/* 성격·말투 */}
-      <Section title="성격 · 말투">
+      {/* Personality·말투 */}
+      <Section title="Personality & speech">
         <Field
-          label="성격"
+          label="Personality"
           required
           error={submitted ? errors.traits : undefined}
         >
           <textarea
             rows={3}
             className={TEXTAREA}
-            placeholder="친해지면 밝고 수다스럽고 위트 있다. 책임감이 강하고 다정하다."
+            placeholder="Once warmed up, bright, chatty, and witty. Responsible and caring."
             value={traits}
             onChange={(e) => setTraits(e.target.value)}
           />
         </Field>
-        <Field label="말투 / 언어 습관">
+        <Field label="Speech / verbal habits">
           <textarea
             rows={3}
             className={TEXTAREA}
             placeholder={
-              "- 처음 본 사람에겐 정중하지만, 금세 편한 말투로 바뀐다.\n- 농담 뒤엔 'ㅎㅎ', 놀라면 '헐'."
+              "- Polite with strangers, quickly warms up to a casual tone.\n- 'haha' after jokes, 'whoa' when surprised."
             }
             value={speechHabits}
             onChange={(e) => setSpeechHabits(e.target.value)}
           />
         </Field>
-        <Field label="채팅 스타일" hint="메시지 길이, 버블 분리 습관 등.">
+        <Field label="Texting style" hint="Message length, bubble splitting, etc.">
           <textarea
             rows={2}
             className={TEXTAREA}
-            placeholder="짧게 1~2줄. 신나면 3줄까지. 버블을 나눠 보낸다."
+            placeholder="Short, 1-2 lines. Up to 3 when excited. Splits into bubbles."
             value={textingStyle}
             onChange={(e) => setTextingStyle(e.target.value)}
           />
         </Field>
       </Section>
 
-      {/* 디테일 */}
-      <Section title="디테일">
-        <Field label="좋아하는 것">
+      {/* Details */}
+      <Section title="Details">
+        <Field label="Likes">
           <TagInput
             value={likes}
             onChange={setLikes}
-            placeholder="입력 후 Enter로 추가"
+            placeholder="Type and press Enter to add"
           />
         </Field>
-        <Field label="싫어하는 것">
+        <Field label="Dislikes">
           <TagInput
             value={dislikes}
             onChange={setDislikes}
-            placeholder="입력 후 Enter로 추가"
+            placeholder="Type and press Enter to add"
           />
         </Field>
         <Field
-          label="비밀 (드러내지 않음)"
-          hint="친해져도 캐릭터가 직접 밝히지 않는 설정."
+          label="Secret (never revealed)"
+          hint="Something the character never reveals, even when close."
         >
           <input
             className={INPUT}
-            placeholder="자신이 스파이더맨이라는 사실을 직접 말하지 않는다."
+            placeholder="Never directly admits being Spider-Man."
             value={hidden}
             onChange={(e) => setHidden(e.target.value)}
           />
         </Field>
-        <Field label="금지 주제" hint="대화에서 피해야 할 주제.">
+        <Field label="Banned topics" hint="Topics to avoid in conversation.">
           <TagInput
             value={bannedTopics}
             onChange={setBannedTopics}
-            placeholder="입력 후 Enter로 추가"
+            placeholder="Type and press Enter to add"
           />
         </Field>
       </Section>
 
-      {/* 첫 대화 */}
-      <Section title="첫 대화">
-        <Field label="첫 상황">
+      {/* First chat */}
+      <Section title="First chat">
+        <Field label="Opening situation">
           <textarea
             rows={2}
             className={TEXTAREA}
-            placeholder="팀 프로젝트로 막 연락처를 교환한 상황. 아직 서먹하다."
+            placeholder="Just exchanged contacts for a team project. Still a bit awkward."
             value={firstSituation}
             onChange={(e) => setFirstSituation(e.target.value)}
           />
         </Field>
-        <Field label="첫 메시지" hint="방 입장 시 캐릭터가 먼저 보내는 말.">
+        <Field label="First message" hint="The character's opening line when you enter the room.">
           <textarea
             rows={2}
             className={TEXTAREA}
-            placeholder="안녕! 아까 프로젝트 단톡에서 연락처 교환한 피터야. 잘 부탁해!"
+            placeholder="Hey! This is Peter, we swapped contacts in the project group. Looking forward to it!"
             value={firstMessage}
             onChange={(e) => setFirstMessage(e.target.value)}
           />
         </Field>
       </Section>
 
-      {/* 관계 */}
-      <Section title="관계">
-        <Field label="시작 친밀도">
+      {/* Relationship */}
+      <Section title="Relationship">
+        <Field label="Starting affinity">
           <div className="grid grid-cols-4 gap-2">
             {AFFINITY_LEVELS.map((lv) => {
               const active = affinityStart === lv.value
@@ -467,7 +464,7 @@ export function CharacterForm({
             })}
           </div>
         </Field>
-        <Field label="공개 범위" required>
+        <Field label="Visibility" required>
           <div className="grid grid-cols-3 gap-2">
             {VISIBILITY_OPTIONS.map((opt) => {
               const active = visibility === opt.value
@@ -499,7 +496,7 @@ export function CharacterForm({
           className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-destructive/30 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10"
         >
           <Trash2 size={16} />
-          캐릭터 삭제
+          Delete character
         </button>
       ) : null}
 
@@ -517,8 +514,8 @@ export function CharacterForm({
           className="h-12 w-full rounded-xl bg-brand text-sm font-semibold text-white transition-opacity active:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving
-            ? "저장 중…"
-            : (submitLabel ?? (mode === "edit" ? "변경 저장" : "캐릭터 만들기"))}
+            ? "Saving…"
+            : (submitLabel ?? (mode === "edit" ? "Save changes" : "Create character"))}
         </button>
       </div>
     </form>
@@ -574,9 +571,11 @@ function Field({
 function SectionImage({
   imageUrl,
   onChange,
+  uploading,
 }: {
   imageUrl: string
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+  uploading?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -586,7 +585,7 @@ function SectionImage({
         type="button"
         onClick={() => inputRef.current?.click()}
         className="relative flex size-24 items-center justify-center overflow-hidden rounded-full border border-grey-200 bg-grey-100 text-grey-400 dark:border-grey-700 dark:bg-grey-800"
-        aria-label="캐릭터 이미지 추가"
+        aria-label="Add character photo"
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -598,6 +597,11 @@ function SectionImage({
         ) : (
           <ImagePlus size={24} />
         )}
+        {uploading ? (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/40">
+            <span className="size-5 animate-spin rounded-full border-2 border-white/70 border-t-white" />
+          </span>
+        ) : null}
         <span className="absolute right-0 bottom-0 flex size-7 items-center justify-center rounded-full border-2 border-white bg-brand text-white dark:border-grey-900">
           <ImagePlus size={14} />
         </span>
@@ -666,7 +670,7 @@ function TagInput({
               <button
                 type="button"
                 onClick={() => onChange(value.filter((t) => t !== tag))}
-                aria-label={`${tag} 삭제`}
+                aria-label={`Remove ${tag}`}
                 className="text-brand/70 hover:text-brand"
               >
                 <X size={12} />

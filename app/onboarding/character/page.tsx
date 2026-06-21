@@ -164,11 +164,11 @@ export default function CharacterGatePage() {
                     ))}
                   </div>
                 ) : null}
-                {/* 준비중 (채팅 미지원) */}
+                {/* Coming soon (채팅 미지원) */}
                 {!chatReady ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/35">
                     <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-grey-700">
-                      준비중
+                      Coming soon
                     </span>
                   </div>
                 ) : null}

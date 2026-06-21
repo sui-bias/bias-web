@@ -59,7 +59,7 @@ export default function ConnectPage() {
       })
       if (!res.ok) {
         const { error: msg } = await res.json().catch(() => ({}))
-        throw new Error(msg ?? "로그인에 실패했습니다.")
+        throw new Error(msg ?? "Login failed.")
       }
       const { isNew } = (await res.json()) as { isNew: boolean }
 
@@ -72,8 +72,8 @@ export default function ConnectPage() {
       setPhase("idle")
       setError(
         e instanceof Error && /reject|denied|cancel/i.test(e.message)
-          ? "서명이 취소되었습니다. 다시 시도해주세요."
-          : "지갑 잠금을 해제한 뒤 다시 시도해주세요."
+          ? "Signature cancelled. Please try again."
+          : "Unlock your wallet and try again."
       )
     }
   }
@@ -100,7 +100,7 @@ export default function ConnectPage() {
           if (account) login(account)
           else {
             setPhase("idle")
-            setError("지갑 계정을 찾을 수 없습니다.")
+            setError("Wallet account not found.")
           }
         },
         onError: () => {

@@ -17,7 +17,7 @@ export default function DisplaySettingsPage() {
             <ChevronLeft size={20} />
           </Link>
         }
-        title="화면"
+        title="Display"
       />
 
       <DisplayThemeSelector />

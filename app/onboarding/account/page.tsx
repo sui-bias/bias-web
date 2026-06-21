@@ -74,7 +74,7 @@ export default function AccountPage() {
       .catch(() => ({}))) as Partial<StatusResponse> & {
       error?: string
     }
-    if (!res.ok) throw new Error(json.error ?? "상태 조회에 실패했습니다.")
+    if (!res.ok) throw new Error(json.error ?? "Failed to check status.")
     return {
       step: (json.step ?? "pending") as MemwalStep,
       accountId: json.accountId ?? null,
@@ -99,7 +99,7 @@ export default function AccountPage() {
       .catch(() => ({}))) as Partial<StatusResponse> & {
       error?: string
     }
-    if (!res.ok) throw new Error(json.error ?? "단계 업데이트에 실패했습니다.")
+    if (!res.ok) throw new Error(json.error ?? "Failed to update step.")
     return {
       step: (json.step ?? "pending") as MemwalStep,
       accountId: json.accountId ?? null,
@@ -116,7 +116,7 @@ export default function AccountPage() {
     setAccountId(status.accountId)
     if (status.step !== expected) {
       throw new Error(
-        `단계 확인 실패: expected=${expected}, got=${status.step}`
+        `Step check failed: expected=${expected}, got=${status.step}`
       )
     }
   }
@@ -178,7 +178,7 @@ export default function AccountPage() {
 
   async function handleOnboard() {
     if (!account?.address) {
-      setError("지갑이 연결되지 않았습니다.")
+      setError("Wallet not connected.")
       return
     }
 
@@ -197,7 +197,7 @@ export default function AccountPage() {
         error?: string
       }
       if (!configRes.ok) {
-        throw new Error(config.error ?? "MemWal config 조회에 실패했습니다.")
+        throw new Error(config.error ?? "Failed to fetch MemWal config.")
       }
       if (
         !config.packageId ||
@@ -205,7 +205,7 @@ export default function AccountPage() {
         !config.serverDelegatePubKey ||
         !config.serverSealDelegatePubKey
       ) {
-        throw new Error("MemWal config 값이 누락되었습니다.")
+        throw new Error("MemWal config values are missing.")
       }
 
       const issuedAt = new Date().toISOString()
@@ -241,7 +241,7 @@ export default function AccountPage() {
             account,
           })
           if (!("digest" in result) || typeof result.digest !== "string") {
-            throw new Error("트랜잭션 digest를 확인할 수 없습니다.")
+            throw new Error("Couldn't verify the transaction digest.")
           }
           return { digest: result.digest }
         },
@@ -274,7 +274,7 @@ export default function AccountPage() {
       }
 
       if (!memwalAccountId) {
-        throw new Error("MemWal accountId를 확인할 수 없습니다.")
+        throw new Error("Couldn't verify the MemWal accountId.")
       }
       createdAccountId = memwalAccountId
       setAccountId(memwalAccountId)
@@ -343,7 +343,7 @@ export default function AccountPage() {
           await postStep("/api/memwal/onboard/step/failed", {
             ...proof,
             accountId: createdAccountId ?? undefined,
-            error: e instanceof Error ? e.message : "온보딩에 실패했습니다.",
+            error: e instanceof Error ? e.message : "Onboarding failed.",
           })
           setRemoteStep("failed")
         } catch {
@@ -351,7 +351,7 @@ export default function AccountPage() {
         }
       }
       setPhase("idle")
-      setError(e instanceof Error ? e.message : "온보딩에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Onboarding failed.")
     }
   }
 

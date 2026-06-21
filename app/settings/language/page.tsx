@@ -17,7 +17,7 @@ export default function LanguageSettingsPage() {
             <ChevronLeft size={20} />
           </Link>
         }
-        title="언어"
+        title="Language"
       />
 
       <LanguageSelector />

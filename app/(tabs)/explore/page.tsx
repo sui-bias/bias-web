@@ -56,7 +56,7 @@ export default function ExplorePage() {
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="캐릭터 이름·성격·장르 검색"
+            placeholder="Search by name, personality, or genre"
             className="h-11 w-full rounded-xl border border-grey-200 bg-grey-100 pr-3 pl-10 text-sm text-grey-900 transition-colors outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
           />
         </div>
@@ -66,10 +66,10 @@ export default function ExplorePage() {
         {results.length === 0 ? (
           <div className="px-3 py-10 text-center text-sm text-grey-500 dark:text-grey-400">
             {loading
-              ? "불러오는 중…"
+              ? "Loading…"
               : keyword
-                ? "검색 결과가 없습니다."
-                : "아직 공개된 캐릭터가 없어요."}
+                ? "No results."
+                : "No public characters yet."}
           </div>
         ) : (
           <ul className="grid grid-cols-3 gap-1">

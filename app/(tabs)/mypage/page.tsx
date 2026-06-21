@@ -31,7 +31,7 @@ function fmtDate(ms: number) {
 }
 
 function shortAddr(addr?: string | null) {
-  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "지갑 미연결"
+  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "Wallet not connected"
 }
 
 export default function MyPage() {
@@ -49,16 +49,16 @@ export default function MyPage() {
     router.replace("/onboarding")
   }
   const characterLimit = PLANS[plan].characterLimit
-  const displayName = user?.display_name ?? (loading ? "불러오는 중…" : "게스트")
+  const displayName = user?.display_name ?? (loading ? "Loading…" : "Guest")
   const handle = user?.username ?? "guest"
-  // TODO(api): 캐릭터 개수·메시지 사용량은 아직 DB 미집계 → placeholder
-  const characterUsage = characterLimit > 0 ? `0 / ${characterLimit}` : "Plus 전용"
+  // TODO(api): 캐릭터 개수·Messages 사용량은 아직 DB 미집계 → placeholder
+  const characterUsage = characterLimit > 0 ? `0 / ${characterLimit}` : "Plus only"
 
   return (
     <div className="space-y-6 pt-6 pb-6">
       <AppHeader title="My Page" titleClassName="text-2xl" />
 
-      {/* 프로필 헤더 카드 */}
+      {/* Profile 헤더 카드 */}
       <section className="px-4">
         <div className="flex items-center gap-3">
           <div className="size-16 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-violet-300 to-indigo-500">
@@ -94,19 +94,19 @@ export default function MyPage() {
             href="/mypage/profile"
             className="shrink-0 rounded-xl border border-grey-200 px-3 py-1.5 text-xs font-semibold text-grey-700 transition-colors hover:bg-grey-100 dark:border-grey-700 dark:text-grey-200 dark:hover:bg-grey-800"
           >
-            편집
+            Edit
           </Link>
         </div>
       </section>
 
-      {/* 플랜 · 사용량 카드 */}
+      {/* plan · 사용량 카드 */}
       <section className="px-4">
         <div className="space-y-3 rounded-2xl border border-grey-200 p-4 dark:border-grey-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles size={16} className="text-brand" />
               <span className="text-sm font-bold text-grey-900 dark:text-white">
-                {PLANS[plan].name} 플랜
+                {PLANS[plan].name} plan
               </span>
               {primary && !primary.expired && (
                 <span className="text-[11px] text-grey-400">
@@ -114,61 +114,61 @@ export default function MyPage() {
                 </span>
               )}
               {primary?.expired && (
-                <span className="text-[11px] text-red-500">만료됨</span>
+                <span className="text-[11px] text-red-500">Expired</span>
               )}
             </div>
             <Link
               href="/pricing"
               className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white"
             >
-              {isPlus ? "플랜 관리" : "업그레이드"}
+              {isPlus ? "Manage plan" : "Upgrade"}
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <Usage label="메시지" value="—" />
-            <Usage label="내 캐릭터" value={characterUsage} />
+            <Usage label="Messages" value="—" />
+            <Usage label="My characters" value={characterUsage} />
           </div>
           <Link
             href="/market"
             className="block rounded-lg border border-grey-200 py-2 text-center text-xs font-semibold text-grey-600 hover:bg-grey-50 dark:border-grey-700 dark:text-grey-300 dark:hover:bg-grey-800"
           >
-            구독권 거래소에서 사고팔기
+            Buy &amp; sell passes on the market
           </Link>
         </div>
       </section>
 
-      {/* 관리 */}
-      <MenuGroup title="관리">
+      {/* Manage */}
+      <MenuGroup title="Manage">
         <MenuRow
           icon={UserCog}
-          label="내 캐릭터 관리"
+          label="Manage characters"
           href="/character"
           trailing={characterLimit > 0 ? `0/${characterLimit}` : undefined}
         />
-        <MenuRow icon={Users} label="내 그룹 방 관리" href="/mypage/groups" />
+        <MenuRow icon={Users} label="My group rooms" href="/mypage/groups" />
         <MenuRow
           icon={MessageSquareText}
-          label="대화 기억 관리"
+          label="Memory settings"
           href="/mypage/memory"
         />
-        <MenuRow icon={ShieldX} label="친구 · 차단 관리" href="/list" />
+        <MenuRow icon={ShieldX} label="Friends & blocks" href="/list" />
       </MenuGroup>
 
-      {/* 설정 */}
-      <MenuGroup title="설정">
-        <MenuRow icon={Palette} label="화면" href="/settings/display" />
-        <MenuRow icon={Globe} label="언어" href="/settings/language" />
-        <MenuRow icon={Bell} label="알림" href="/mypage/notifications" />
+      {/* Settings */}
+      <MenuGroup title="Settings">
+        <MenuRow icon={Palette} label="Display" href="/settings/display" />
+        <MenuRow icon={Globe} label="Language" href="/settings/language" />
+        <MenuRow icon={Bell} label="Notifications" href="/mypage/notifications" />
       </MenuGroup>
 
-      {/* 계정 */}
-      <MenuGroup title="계정">
+      {/* Account */}
+      <MenuGroup title="Account">
         <MenuRow
           icon={Trash2}
-          label="데이터 삭제 요청"
+          label="Delete my data"
           href="/mypage/data-deletion"
         />
-        <MenuRow icon={LogOut} label="지갑 연결 해제" onClick={handleLogout} />
+        <MenuRow icon={LogOut} label="Disconnect wallet" onClick={handleLogout} />
       </MenuGroup>
     </div>
   )

@@ -5,13 +5,13 @@ import { useTheme } from "next-themes"
 const OPTIONS = [
   {
     value: "light",
-    label: "라이트 모드",
-    description: "항상 밝은 화면으로 표시",
+    label: "Light mode",
+    description: "Always use a light theme",
   },
   {
     value: "dark",
-    label: "다크 모드",
-    description: "항상 어두운 화면으로 표시",
+    label: "Dark mode",
+    description: "Always use a dark theme",
   },
 ] as const
 
@@ -44,7 +44,7 @@ export function DisplayThemeSelector() {
                 {option.label}
               </p>
               {selected ? (
-                <span className="text-xs font-semibold text-brand">선택됨</span>
+                <span className="text-xs font-semibold text-brand">Selected</span>
               ) : null}
             </div>
             <p className="mt-1 text-xs text-grey-500 dark:text-grey-400">
