@@ -2,9 +2,12 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
+  ArrowDownToLine,
   ArrowLeft,
   CircleMinus,
+  LogOut,
   MoreVertical,
   SendHorizonal,
   UserPlus,
@@ -12,7 +15,12 @@ import {
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { getCharacter } from "@/lib/characters"
 import { addFriend, isFriend } from "@/lib/friends"
-import { addMessage, getRoom, listMessages } from "@/lib/rooms"
+import {
+  addMessage,
+  getRoom,
+  leaveRoomForUser,
+  listMessages,
+} from "@/lib/rooms"
 import { getUser, type UserRow } from "@/lib/users"
 import type { Character, Message, Room, SenderRef } from "@/lib/types"
 import { AppHeader } from "@/components/app-header"
@@ -80,6 +88,7 @@ export default function RoomPage({
 }) {
   const { id } = use(params)
   const { address } = useCurrentUser()
+  const router = useRouter()
 
   const [room, setRoom] = useState<Room | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -92,8 +101,10 @@ export default function RoomPage({
   const [characterById, setCharacterById] = useState<Record<string, Character>>(
     {}
   )
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const firstMessageBootstrappedRef = useRef(false)
+  const optionsRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     firstMessageBootstrappedRef.current = false
@@ -115,6 +126,24 @@ export default function RoomPage({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  useEffect(() => {
+    if (!optionsOpen) return
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (
+        optionsRef.current &&
+        !optionsRef.current.contains(event.target as Node)
+      ) {
+        setOptionsOpen(false)
+      }
+    }
+
+    window.addEventListener("mousedown", handleMouseDown)
+    return () => {
+      window.removeEventListener("mousedown", handleMouseDown)
+    }
+  }, [optionsOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -382,6 +411,45 @@ export default function RoomPage({
   }
 
   const characters = room.participants.filter((p) => p.type === "character")
+  const myCharacters = characters.filter(
+    (p) => p.type === "character" && address && p.ownerAddress === address
+  )
+  const canExportMemwal = myCharacters.length > 0
+
+  async function handleLeaveRoom() {
+    if (!address) return
+    setOptionsOpen(false)
+
+    const confirmed = window.confirm("Leave this room?")
+    if (!confirmed) return
+
+    try {
+      await leaveRoomForUser(id, address)
+      router.replace("/chat")
+    } catch {
+      alert("Failed to leave the room.")
+    }
+  }
+
+  async function handleExportMemwalInfo() {
+    if (!address || !canExportMemwal) return
+    setOptionsOpen(false)
+
+    const user = await getUser(address)
+    const accountId = user?.memwal_account_id?.trim() || "(none)"
+    const namespaceLines = myCharacters.map(
+      (participant, index) =>
+        `namespace${index + 1}: room:${id}:char:${participant.characterId}:user:${address}`
+    )
+    const content = [`accountId: ${accountId}`, ...namespaceLines].join("\n")
+
+    try {
+      await navigator.clipboard.writeText(content)
+      alert(`Copied to clipboard:\n\n${content}`)
+    } catch {
+      alert("Failed to get character information")
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -420,12 +488,38 @@ export default function RoomPage({
             </div>
           }
           right={
-            <button
-              aria-label="Chat options"
-              className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
-            >
-              {characters.length > 0 && <MoreVertical size={18} />}
-            </button>
+            <div ref={optionsRef} className="relative">
+              <button
+                type="button"
+                aria-label="Chat options"
+                onClick={() => setOptionsOpen((prev) => !prev)}
+                className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
+              >
+                <MoreVertical size={18} />
+              </button>
+              {optionsOpen ? (
+                <div className="absolute top-11 right-0 z-30 w-56 rounded-xl border border-grey-200 bg-white p-1 shadow-lg dark:border-grey-700 dark:bg-grey-900">
+                  <button
+                    type="button"
+                    onClick={handleLeaveRoom}
+                    className="flex w-full items-center gap-1 rounded-lg px-3 py-2 text-left text-sm text-grey-900 transition-colors hover:bg-grey-100 dark:text-white dark:hover:bg-grey-800"
+                  >
+                    <LogOut size={14} />
+                    leave room
+                  </button>
+                  {canExportMemwal ? (
+                    <button
+                      type="button"
+                      onClick={handleExportMemwalInfo}
+                      className="flex w-full items-center gap-1 rounded-lg px-3 py-2 text-left text-sm text-grey-900 transition-colors hover:bg-grey-100 dark:text-white dark:hover:bg-grey-800"
+                    >
+                      <ArrowDownToLine size={14} />
+                      export character
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           }
         />
 
