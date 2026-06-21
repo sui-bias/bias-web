@@ -562,9 +562,9 @@ export default function RoomPage({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-white dark:bg-grey-900">
       {/* 헤더 */}
-      <div className="tom-0 fixed mx-auto w-full max-w-md bg-white dark:bg-grey-900">
+      <div className="sticky top-0 z-20 bg-white dark:bg-grey-900">
         <AppHeader
           className="pt-4 pb-2"
           left={
@@ -662,7 +662,7 @@ export default function RoomPage({
 
       {/* 메시지 */}
       <div
-        className={`flex-1 space-y-2 overflow-y-auto px-4 pb-18 ${otherUser && !otherFriend ? "pt-32" : "pt-18"}`}
+        className="flex-1 space-y-2 overflow-y-auto px-4 py-3"
       >
         {messages.length === 0 ? (
           <p className="py-10 text-center text-xs text-grey-400 dark:text-grey-500">
@@ -798,7 +798,7 @@ export default function RoomPage({
       </div>
 
       {/* 입력 */}
-      <div className="fixed right-0 bottom-0 left-0 mx-auto w-full max-w-md bg-white px-4 py-3 dark:bg-grey-900">
+      <div className="sticky bottom-0 z-20 bg-white px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] dark:bg-grey-900">
         <div className="flex items-end gap-2">
           <input
             value={input}
