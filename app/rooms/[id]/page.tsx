@@ -562,9 +562,9 @@ export default function RoomPage({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="mx-auto flex h-full w-full max-w-md flex-col">
       {/* 헤더 */}
-      <div className="tom-0 fixed mx-auto w-full max-w-md bg-white dark:bg-grey-900">
+      <div className="top-0 fixed inset-x-0 mx-auto w-full max-w-md bg-white dark:bg-grey-900">
         <AppHeader
           className="pt-4 pb-2"
           left={
