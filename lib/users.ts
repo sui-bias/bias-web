@@ -25,10 +25,11 @@ export interface UserRow {
 }
 
 export interface SubscriptionRow {
-  object_id: string
+  object_id: string // 온체인 MembershipPass NFT id
   address: string
   plan: Plan
-  status: "active" | "cancelled" | "expired"
+  status: "active" | "cancelled" | "expired" | "sold"
+  expires_at?: string | null
 }
 
 export type ProfileInput = Omit<
@@ -172,11 +173,15 @@ export async function updateProfile(
   }
 }
 
-/** 구독 성공 반영: users.plan 갱신 + subscriptions upsert. */
-export async function setSubscription(
+/**
+ * 구독 캐시 동기화: 온체인이 진짜 소스이고, 이건 표시 가속용 캐시일 뿐이다.
+ * mint/renew/upgrade/buy 성공 후 호출해 users.plan + subscriptions 를 맞춘다.
+ */
+export async function cacheSubscription(
   address: string,
   plan: Plan,
-  subscriptionObjectId: string
+  passObjectId: string,
+  expiresMs?: number
 ): Promise<void> {
   const { error: e1 } = await supabase
     .from("users")
@@ -185,22 +190,29 @@ export async function setSubscription(
   if (e1) throw new Error(e1.message)
 
   const { error: e2 } = await supabase.from("subscriptions").upsert(
-    { object_id: subscriptionObjectId, address, plan, status: "active" },
+    {
+      object_id: passObjectId,
+      address,
+      plan,
+      status: "active",
+      expires_at: expiresMs ? new Date(expiresMs).toISOString() : null,
+    },
     { onConflict: "object_id" }
   )
   if (e2) throw new Error(e2.message)
 }
 
-/** 구독 취소 반영: plan=free 강등 + subscriptions status=cancelled. */
-export async function endSubscription(
+/** 판매/소각 등으로 Pass 가 떠난 경우 캐시 정리: plan=free + status 갱신. */
+export async function clearSubscription(
   address: string,
-  subscriptionObjectId: string
+  passObjectId: string,
+  status: "cancelled" | "sold" | "expired" = "cancelled"
 ): Promise<void> {
   await supabase.from("users").update({ plan: "free" }).eq("address", address)
   await supabase
     .from("subscriptions")
-    .update({ status: "cancelled" })
-    .eq("object_id", subscriptionObjectId)
+    .update({ status })
+    .eq("object_id", passObjectId)
 }
 
 /** 현재 활성 구독 1건 조회. */

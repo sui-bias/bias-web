@@ -1,0 +1,248 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { ChevronLeft, Loader2, Check, Store } from "lucide-react"
+import { useSuiClient } from "@mysten/dapp-kit"
+import { AppHeader } from "@/components/app-header"
+import { usePlan } from "@/components/plan-provider"
+import { usePassActions } from "@/hooks/use-pass-actions"
+import { getOwnedPasses } from "@/lib/pass"
+import { PaidPlan, PAID_PLANS, PLANS } from "@/lib/plans"
+import {
+  buildMintTx,
+  buildRenewTx,
+  buildUpgradeTx,
+  PRICE_MIST,
+  SubscriptionConfigured,
+} from "@/lib/subscription"
+import { cacheSubscription } from "@/lib/users"
+import { cn } from "@/lib/utils"
+
+function suiLabel(mist: bigint) {
+  return `${Number(mist) / 1e9} SUI`
+}
+function fmtDate(ms: number) {
+  return new Date(ms).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
+}
+
+type ActionKind = "mint" | "renew" | "upgrade" | "lower" | "current"
+
+export default function PricingPage() {
+  const router = useRouter()
+  const client = useSuiClient()
+  const { account, execute } = usePassActions()
+  const { plan, passes, primary, refresh } = usePlan()
+  const [busy, setBusy] = useState<PaidPlan | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const activeTier = primary && !primary.expired ? primary.tier : 0
+
+  /** 각 플랜 카드가 취할 액션을 결정. */
+  function resolveAction(p: PaidPlan): ActionKind {
+    const t = PLANS[p].tier
+    // 동일 tier Pass 보유(만료 포함) → 새 NFT mint 대신 갱신.
+    if (passes.some((x) => x.tier === t)) return "renew"
+    if (activeTier === 0) return "mint"
+    if (t > activeTier) return "upgrade"
+    return "lower" // 보유보다 낮은 tier → 비활성
+  }
+
+  async function handle(p: PaidPlan) {
+    if (!account) {
+      setError("Please connect your wallet first.")
+      return
+    }
+    setError(null)
+    setBusy(p)
+    try {
+      const kind = resolveAction(p)
+      if (kind === "renew") {
+        const target = passes.find((x) => x.tier === PLANS[p].tier)!
+        await execute(buildRenewTx(target.id, p))
+      } else if (kind === "upgrade") {
+        await execute(buildUpgradeTx(primary!.id, primary!.plan as PaidPlan, p))
+      } else {
+        await execute(buildMintTx(p))
+      }
+
+      // 온체인에서 방금 갱신된 Pass 를 다시 읽어 정확한 id/만료시각으로 캐시한다.
+      // (실패해도 온체인이 진짜 소스라 치명적 아님 / Pass 없으면 캐시 스킵)
+      try {
+        const fresh = await getOwnedPasses(client, account.address)
+        const mine = fresh.find((x) => x.tier === PLANS[p].tier)
+        if (mine) {
+          await cacheSubscription(account.address, p, mine.id, mine.expiresMs)
+        }
+      } catch (e) {
+        console.error("[pricing] cache error:", e)
+      }
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.")
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="space-y-6 pt-6 pb-28">
+      <AppHeader
+        left={
+          <button
+            onClick={() => router.back()}
+            className="flex size-9 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-300 dark:hover:bg-grey-800"
+            aria-label="Back"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        }
+        title="Subscription Plans"
+        titleClassName="text-xl"
+      />
+
+      {/* 현재 상태 */}
+      <section className="px-4">
+        <div className="rounded-2xl border border-grey-200 p-4 dark:border-grey-800">
+          <p className="text-xs text-grey-500 dark:text-grey-400">Current plan</p>
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-lg font-bold text-grey-900 dark:text-white">
+              {PLANS[plan].name}
+            </span>
+            {primary && !primary.expired ? (
+              <span className="text-xs text-grey-500 dark:text-grey-400">
+                Until {fmtDate(primary.expiresMs)}
+              </span>
+            ) : primary?.expired ? (
+              <span className="text-xs text-red-500">Expired</span>
+            ) : null}
+          </div>
+          <p className="mt-1 text-[11px] text-grey-400">
+            Subscriptions are issued as NFTs and stored in your wallet.
+          </p>
+        </div>
+      </section>
+
+      {!SubscriptionConfigured && (
+        <p className="px-4 text-xs text-amber-600">
+          ⚠️ Contract is not deployed. Set NEXT_PUBLIC_SUBSCRIPTION_PKG /
+          _CONFIG.
+        </p>
+      )}
+
+      {/* 플랜 카드 */}
+      <section className="space-y-3 px-4">
+        {PAID_PLANS.map((p) => {
+          const def = PLANS[p]
+          const comingSoon = !def.available // pro/max = 추후 공개
+          const kind = resolveAction(p)
+          const isBusy = busy === p
+          const disabled =
+            comingSoon ||
+            kind === "lower" ||
+            !SubscriptionConfigured ||
+            !!busy
+          const label = comingSoon
+            ? "Coming soon"
+            : kind === "renew"
+              ? "Renew"
+              : kind === "upgrade"
+                ? "Upgrade"
+                : kind === "lower"
+                  ? "Higher plan owned"
+                  : "Subscribe"
+          const highlight = PLANS[plan].tier === def.tier && activeTier > 0
+
+          return (
+            <div
+              key={p}
+              className={cn(
+                "rounded-2xl border p-4",
+                comingSoon && "opacity-60",
+                highlight
+                  ? "border-brand bg-brand/5"
+                  : "border-grey-200 dark:border-grey-800"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold text-grey-900 dark:text-white">
+                    {def.name}
+                  </span>
+                  {highlight && (
+                    <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
+                      Active
+                    </span>
+                  )}
+                  {comingSoon && (
+                    <span className="rounded-full bg-grey-200 px-2 py-0.5 text-[10px] font-semibold text-grey-500 dark:bg-grey-700 dark:text-grey-300">
+                      Coming soon
+                    </span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-grey-900 dark:text-white">
+                    {def.priceLabel}
+                  </p>
+                  <p className="text-[11px] text-grey-400">
+                    {suiLabel(PRICE_MIST[p])}
+                  </p>
+                </div>
+              </div>
+
+              <ul className="mt-3 space-y-1">
+                {def.features.map((f) => (
+                  <li
+                    key={f}
+                    className="flex items-center gap-1.5 text-xs text-grey-600 dark:text-grey-300"
+                  >
+                    <Check size={13} className="shrink-0 text-brand" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={() => handle(p)}
+                disabled={disabled}
+                className={cn(
+                  "mt-3 flex h-10 w-full items-center justify-center rounded-xl text-sm font-semibold transition-colors",
+                  disabled
+                    ? "bg-grey-100 text-grey-400 dark:bg-grey-800 dark:text-grey-500"
+                    : "bg-brand text-white hover:bg-brand-600"
+                )}
+              >
+                {isBusy ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  label
+                )}
+              </button>
+            </div>
+          )
+        })}
+      </section>
+
+      {error && (
+        <p className="px-4 text-center text-xs text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      )}
+
+      <section className="px-4">
+        <Link
+          href="/market"
+          className="flex items-center justify-center gap-2 rounded-2xl border border-grey-200 py-3 text-sm font-semibold text-grey-700 hover:bg-grey-50 dark:border-grey-800 dark:text-grey-200 dark:hover:bg-grey-800"
+        >
+          <Store size={16} />
+          Subscription Market
+        </Link>
+      </section>
+    </div>
+  )
+}

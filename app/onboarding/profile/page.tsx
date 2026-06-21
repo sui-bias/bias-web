@@ -30,7 +30,7 @@ const STEP_COUNT = 3
 
 const LANG_OPTIONS = [
   { value: "en", label: "English" },
-  { value: "kr", label: "한국어" },
+  { value: "kr", label: "Korean" },
 ] as const
 const PROFILE_IMAGE_BUCKET = "bias-storage"
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
@@ -127,11 +127,11 @@ export default function ProfilePage() {
     if (!file) return
 
     if (!file.type.startsWith("image/")) {
-      setStepError("이미지 파일만 업로드할 수 있습니다.")
+      setStepError("Only image files can be uploaded.")
       return
     }
     if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
-      setStepError("이미지는 5MB 이하만 업로드할 수 있습니다.")
+      setStepError("Images must be 5MB or smaller.")
       return
     }
 
@@ -156,7 +156,7 @@ export default function ProfilePage() {
     if (error) throw new Error(error.message)
 
     const { data } = supabase.storage.from(PROFILE_IMAGE_BUCKET).getPublicUrl(path)
-    if (!data.publicUrl) throw new Error("프로필 이미지 URL을 생성하지 못했습니다.")
+    if (!data.publicUrl) throw new Error("Failed to generate profile image URL.")
     return data.publicUrl
   }
 

@@ -48,17 +48,17 @@ export async function verifyStateProof(body: unknown): Promise<VerifyResult> {
     signature?: unknown
   }
   if (typeof bytes !== "string" || typeof signature !== "string") {
-    throw new Error("bytes/signature 가 필요합니다.")
+    throw new Error("bytes/signature are required.")
   }
 
   const messageBytes = fromBase64(bytes)
   const parsed = parseStateMessage(new TextDecoder().decode(messageBytes))
-  if (!parsed) throw new Error("메시지 형식이 올바르지 않습니다.")
+  if (!parsed) throw new Error("Invalid message format.")
 
   const issuedMs = Date.parse(parsed.issuedAt)
   const skew = Date.now() - issuedMs
   if (Number.isNaN(issuedMs) || skew > VERIFY_MAX_AGE_MS || skew < -60_000) {
-    throw new Error("만료되었거나 유효하지 않은 요청입니다.")
+    throw new Error("Expired or invalid request.")
   }
 
   await verifyPersonalMessageSignature(messageBytes, signature, {
@@ -71,7 +71,7 @@ export async function verifyStateProof(body: unknown): Promise<VerifyResult> {
 
 export async function getUserOrThrow(address: string): Promise<UserRow> {
   const user = await getUser(address)
-  if (!user) throw new Error("유저를 찾을 수 없습니다.")
+  if (!user) throw new Error("User not found.")
   return user
 }
 

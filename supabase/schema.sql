@@ -131,15 +131,17 @@ create policy "users_demo_update" on public.users
 
 
 -- ============================================================================
---  subscriptions (결제) — auth 소관 아님. 온체인 Subscription 객체와 1:1.
+--  subscriptions (결제) — auth 소관 아님. 온체인 MembershipPass NFT 와 1:1.
+--  ⚠️ 표시 캐시일 뿐, plan 의 진짜 소스는 온체인 Pass 소유다(NFT 양도 시 stale).
 --  결제 담당자가 관리. users(address) FK 로만 연결.
 -- ============================================================================
 create table if not exists public.subscriptions (
-  object_id   text        primary key,                    -- 온체인 Subscription UID
+  object_id   text        primary key,                    -- 온체인 MembershipPass NFT id
   address     text        not null references public.users(address) on delete cascade,
   plan        text        not null check (plan in ('plus','pro','max')),
   status      text        not null default 'active'
-              check (status in ('active','cancelled','expired')),
+              check (status in ('active','cancelled','expired','sold')),
+  expires_at  timestamptz,                                -- 온체인 expires_ms 캐시
   created_at  timestamptz not null default now()
 );
 create index if not exists subscriptions_address_idx on public.subscriptions(address);

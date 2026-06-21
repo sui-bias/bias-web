@@ -9,6 +9,7 @@ import {
   useConnectWallet,
   useCurrentAccount,
   useSignPersonalMessage,
+  useAutoConnectWallet,
 } from "@mysten/dapp-kit"
 import { AppHeader } from "@/components/app-header"
 import { buildLoginMessage } from "@/lib/auth"
@@ -23,10 +24,15 @@ export default function ConnectPage() {
   const currentAccount = useCurrentAccount()
   const { mutate: connect } = useConnectWallet()
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage()
+  const autoConnect = useAutoConnectWallet()
 
   const [phase, setPhase] = useState<Phase>("idle")
   const [error, setError] = useState<string | null>(null)
   const busy = phase !== "idle"
+
+  // autoConnect 가 캐시 복원을 끝내기 전엔 currentAccount 가 잠깐 비어 레이스가 난다.
+  // 복원이 끝날(settled) 때까지 버튼을 잠가 "연결 안 됨" 오작동을 막는다.
+  const settled = autoConnect === "attempted" || autoConnect === "disabled"
 
   // dapp-kit이 감지한 지갑 중 Slush를 찾는다. (확장프로그램 + 웹 지갑)
   const slush = wallets.find((w) => w.name.toLowerCase().includes("slush"))
@@ -60,8 +66,15 @@ export default function ConnectPage() {
       // 신규 → 프로필 작성, 기존 → 채팅. (router.replace 이후 phase 유지 = 스피너 유지)
       router.replace(isNew ? "/onboarding/profile" : "/chat")
     } catch (e) {
+      // 지갑이 잠겨있거나(unlock 필요) 사용자가 서명을 취소하면 여기로 온다.
+      // 연결은 그대로 유지한다 — 여기서 disconnect 하면 잠금해제 후에도
+      // 재연결 루프가 생긴다. 같은 버튼으로 다시 누르면 곧바로 재서명된다.
       setPhase("idle")
-      setError(e instanceof Error ? e.message : "Login failed.")
+      setError(
+        e instanceof Error && /reject|denied|cancel/i.test(e.message)
+          ? "Signature cancelled. Please try again."
+          : "Unlock your wallet and try again."
+      )
     }
   }
 
@@ -98,8 +111,9 @@ export default function ConnectPage() {
     )
   }
 
-  const subtitle =
-    phase === "connecting"
+  const subtitle = !settled
+    ? "Restoring session…"
+    : phase === "connecting"
       ? "Connecting…"
       : phase === "signing"
         ? "Approve the signature in your wallet…"
@@ -146,7 +160,7 @@ export default function ConnectPage() {
         <li>
           <button
             onClick={handleConnect}
-            disabled={busy}
+            disabled={busy || !settled}
             className={cn(
               "flex w-full items-center gap-4 rounded-2xl border border-grey-200 bg-grey-50 px-4 py-4 text-left transition-colors",
               "hover:border-brand/40 hover:bg-brand-lightest",
@@ -173,7 +187,7 @@ export default function ConnectPage() {
                 {subtitle}
               </p>
             </div>
-            {busy && (
+            {(busy || !settled) && (
               <div className="size-5 animate-spin rounded-full border-2 border-grey-300 border-t-brand" />
             )}
           </button>

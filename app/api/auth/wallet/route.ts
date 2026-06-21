@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     signature?: unknown
   }
   if (typeof bytes !== "string" || typeof signature !== "string") {
-    return fail("bytes/signature 가 필요합니다.", 400)
+    return fail("bytes/signature are required.", 400)
   }
 
   // 1) 메시지 디코드 + 파싱
@@ -51,16 +51,16 @@ export async function POST(req: Request) {
   try {
     messageBytes = fromBase64(bytes)
   } catch {
-    return fail("bytes 디코드 실패.", 400)
+    return fail("Failed to decode bytes.", 400)
   }
   const parsed = parseLoginMessage(new TextDecoder().decode(messageBytes))
-  if (!parsed) return fail("메시지 형식이 올바르지 않습니다.", 400)
+  if (!parsed) return fail("Invalid message format.", 400)
 
   // 2) 재사용(replay) 방지: 발급 시각이 최근인지 확인
   const issuedMs = Date.parse(parsed.issuedAt)
   const skew = Date.now() - issuedMs
   if (Number.isNaN(issuedMs) || skew > LOGIN_MAX_AGE_MS || skew < -60_000) {
-    return fail("만료되었거나 유효하지 않은 로그인 요청입니다.", 401)
+    return fail("Expired or invalid login request.", 401)
   }
 
   // 3) 서명 검증 (서명자 주소가 메시지의 address 와 일치해야 통과)
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       client: suiClient,
     })
   } catch {
-    return fail("서명 검증에 실패했습니다.", 401)
+    return fail("Signature verification failed.", 401)
   }
 
   // 4) 1:1 유저 조회 (address = PK)

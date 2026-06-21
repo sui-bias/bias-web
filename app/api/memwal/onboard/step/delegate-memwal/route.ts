@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
   const { accountId } = (body ?? {}) as { accountId?: unknown }
   if (typeof accountId !== "string" || !accountId.trim()) {
-    return fail("accountId 가 필요합니다.", 400)
+    return fail("accountId is required.", 400)
   }
 
   try {

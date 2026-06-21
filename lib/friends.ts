@@ -37,7 +37,7 @@ export async function addFriend(
   me: string,
   friendAddress: string
 ): Promise<void> {
-  if (me === friendAddress) throw new Error("자기 자신은 추가할 수 없습니다.")
+  if (me === friendAddress) throw new Error("You cannot add yourself.")
   const { error } = await supabase
     .from("friendships")
     .upsert(
