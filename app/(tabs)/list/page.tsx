@@ -50,7 +50,7 @@ export default function ListPage() {
       <AppHeader
         left={
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center overflow-hidden rounded-xl bg-yellow-300 text-sm font-semibold text-grey-900">
+            <div className="flex size-9 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-semibold text-grey-500 dark:bg-grey-700 dark:text-grey-300">
               {user?.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

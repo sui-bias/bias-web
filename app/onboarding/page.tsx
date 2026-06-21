@@ -108,9 +108,14 @@ export default function OnboardingLandingPage() {
       <main className="relative z-10 flex flex-1 flex-col justify-end gap-4 bg-gradient-to-b from-transparent to-grey-900 px-6 pb-8">
         {" "}
         {/* Logo */}
-        <div className="text-2xl font-bold">My Bias</div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.svg"
+          alt="mybias"
+          className="h-9 w-auto self-center brightness-0 invert"
+        />
         {/* Hero text */}
-        <div className="space-y-3">
+        <div className="space-y-3 text-center">
           {/* <h1 className="text-2xl leading-tight font-bold tracking-tight">
             Chat with your
             <br />
