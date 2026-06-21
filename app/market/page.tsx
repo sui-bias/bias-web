@@ -66,7 +66,7 @@ export default function MarketPage() {
   }
 
   async function buy(l: MarketListing) {
-    if (!account) return setError("지갑을 먼저 연결해주세요.")
+    if (!account) return setError("Please connect your wallet first.")
     setError(null)
     setBusy(l.listingId)
     try {
@@ -78,7 +78,7 @@ export default function MarketPage() {
       }
       await refreshAll()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "구매에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Purchase failed.")
     } finally {
       setBusy(null)
     }
@@ -91,16 +91,16 @@ export default function MarketPage() {
       await execute(buildDelistTx(l.listingId))
       await refreshAll()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "취소에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Cancellation failed.")
     } finally {
       setBusy(null)
     }
   }
 
   async function listPass(pass: OwnedPass, priceSui: string) {
-    if (!account) return setError("지갑을 먼저 연결해주세요.")
+    if (!account) return setError("Please connect your wallet first.")
     const sui = Number(priceSui)
-    if (!sui || sui <= 0) return setError("가격을 입력해주세요.")
+    if (!sui || sui <= 0) return setError("Please enter a price.")
     setError(null)
     setBusy(pass.id)
     try {
@@ -114,7 +114,7 @@ export default function MarketPage() {
       }
       await refreshAll()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "등록에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Listing failed.")
     } finally {
       setBusy(null)
     }
@@ -127,28 +127,28 @@ export default function MarketPage() {
           <button
             onClick={() => router.back()}
             className="flex size-9 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-300 dark:hover:bg-grey-800"
-            aria-label="뒤로"
+            aria-label="Back"
           >
             <ChevronLeft size={20} />
           </button>
         }
-        title="구독권 거래소"
+        title="Subscription Market"
         titleClassName="text-xl"
       />
 
       {!SubscriptionConfigured && (
         <p className="px-4 text-xs text-amber-600">
-          ⚠️ 컨트랙트 미배포 상태입니다.
+          ⚠️ Contract is not deployed.
         </p>
       )}
 
       {/* 내 구독권 판매 등록 */}
       <section className="space-y-2 px-4">
         <h2 className="flex items-center gap-1.5 text-sm font-bold text-grey-900 dark:text-white">
-          <Tag size={15} className="text-brand" /> 내 구독권 판매하기
+          <Tag size={15} className="text-brand" /> Sell my subscription
         </h2>
         {passes.length === 0 ? (
-          <p className="text-xs text-grey-400">보유한 구독권 NFT가 없습니다.</p>
+          <p className="text-xs text-grey-400">You have no subscription NFTs.</p>
         ) : (
           passes.map((pass) => (
             <SellRow
@@ -164,14 +164,14 @@ export default function MarketPage() {
       {/* 판매 중 목록 */}
       <section className="space-y-2 px-4">
         <h2 className="flex items-center gap-1.5 text-sm font-bold text-grey-900 dark:text-white">
-          <ShoppingCart size={15} className="text-brand" /> 판매 중
+          <ShoppingCart size={15} className="text-brand" /> On sale
         </h2>
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 size={20} className="animate-spin text-grey-400" />
           </div>
         ) : listings.length === 0 ? (
-          <p className="text-xs text-grey-400">등록된 구독권이 없습니다.</p>
+          <p className="text-xs text-grey-400">No subscriptions listed.</p>
         ) : (
           listings.map((l) => {
             const mine = account?.address === l.seller
@@ -185,11 +185,11 @@ export default function MarketPage() {
                   <p className="text-sm font-bold text-grey-900 dark:text-white">
                     {PLANS[l.plan].name}
                     <span className="ml-2 text-xs font-normal text-grey-400">
-                      {fmtDate(l.expiresMs)}까지
+                      Until {fmtDate(l.expiresMs)}
                     </span>
                   </p>
                   <p className="truncate text-[11px] text-grey-400">
-                    판매자 {shortAddr(l.seller)}
+                    Seller {shortAddr(l.seller)}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -209,9 +209,9 @@ export default function MarketPage() {
                     {isBusy ? (
                       <Loader2 size={14} className="animate-spin" />
                     ) : mine ? (
-                      "등록 취소"
+                      "Cancel listing"
                     ) : (
-                      "구매"
+                      "Buy"
                     )}
                   </button>
                 </div>
@@ -246,17 +246,17 @@ function SellRow({
         <p className="text-sm font-bold text-grey-900 dark:text-white">
           {PLANS[pass.plan].name}
           {pass.expired && (
-            <span className="ml-2 text-xs font-normal text-red-500">만료</span>
+            <span className="ml-2 text-xs font-normal text-red-500">Expired</span>
           )}
         </p>
-        <p className="text-[11px] text-grey-400">{fmtDate(pass.expiresMs)}까지</p>
+        <p className="text-[11px] text-grey-400">Until {fmtDate(pass.expiresMs)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <input
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           inputMode="decimal"
-          placeholder="가격"
+          placeholder="Price"
           className="h-9 w-20 rounded-xl border border-grey-200 bg-transparent px-2 text-right text-xs text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:text-white"
         />
         <span className="text-[11px] text-grey-400">SUI</span>
@@ -265,7 +265,7 @@ function SellRow({
           disabled={busy}
           className="flex h-9 items-center justify-center rounded-xl bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-50"
         >
-          {busy ? <Loader2 size={14} className="animate-spin" /> : "등록"}
+          {busy ? <Loader2 size={14} className="animate-spin" /> : "List"}
         </button>
       </div>
     </div>

@@ -156,7 +156,7 @@ export async function createCharacter(
     id?: string
     error?: string
   }
-  if (!res.ok) throw new Error(json.error ?? "캐릭터 생성에 실패했습니다.")
+  if (!res.ok) throw new Error(json.error ?? "Failed to create character.")
   return String(json.id)
 }
 

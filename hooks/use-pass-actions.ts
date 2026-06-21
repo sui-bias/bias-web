@@ -20,7 +20,7 @@ export function usePassActions() {
 
   const execute = useCallback(
     async (tx: Transaction): Promise<SuiObjectChange[]> => {
-      if (!account) throw new Error("지갑이 연결되지 않았습니다.")
+      if (!account) throw new Error("Wallet is not connected.")
       const res = await signAndExecute({ transaction: tx, account })
       const full = await client.waitForTransaction({
         digest: res.digest,

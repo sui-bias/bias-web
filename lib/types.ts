@@ -126,7 +126,7 @@ export const AFFINITY_LEVELS: { value: Affinity; label: string }[] = [
 ]
 
 export const NATIVE_LANGUAGE_OPTIONS = [
-  { value: "ko", label: "한국어" },
+  { value: "ko", label: "Korean" },
   { value: "en", label: "English" },
   { value: "ja", label: "日本語" },
 ] as const

@@ -53,7 +53,7 @@ export default function PricingPage() {
 
   async function handle(p: PaidPlan) {
     if (!account) {
-      setError("지갑을 먼저 연결해주세요.")
+      setError("Please connect your wallet first.")
       return
     }
     setError(null)
@@ -81,7 +81,7 @@ export default function PricingPage() {
       }
       await refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "처리에 실패했습니다.")
+      setError(e instanceof Error ? e.message : "Something went wrong.")
     } finally {
       setBusy(null)
     }
@@ -94,41 +94,41 @@ export default function PricingPage() {
           <button
             onClick={() => router.back()}
             className="flex size-9 items-center justify-center rounded-full text-grey-700 hover:bg-grey-100 dark:text-grey-300 dark:hover:bg-grey-800"
-            aria-label="뒤로"
+            aria-label="Back"
           >
             <ChevronLeft size={20} />
           </button>
         }
-        title="구독 플랜"
+        title="Subscription Plans"
         titleClassName="text-xl"
       />
 
       {/* 현재 상태 */}
       <section className="px-4">
         <div className="rounded-2xl border border-grey-200 p-4 dark:border-grey-800">
-          <p className="text-xs text-grey-500 dark:text-grey-400">현재 플랜</p>
+          <p className="text-xs text-grey-500 dark:text-grey-400">Current plan</p>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-lg font-bold text-grey-900 dark:text-white">
               {PLANS[plan].name}
             </span>
             {primary && !primary.expired ? (
               <span className="text-xs text-grey-500 dark:text-grey-400">
-                {fmtDate(primary.expiresMs)}까지
+                Until {fmtDate(primary.expiresMs)}
               </span>
             ) : primary?.expired ? (
-              <span className="text-xs text-red-500">만료됨</span>
+              <span className="text-xs text-red-500">Expired</span>
             ) : null}
           </div>
           <p className="mt-1 text-[11px] text-grey-400">
-            구독권은 NFT로 발급되어 지갑에 보관됩니다.
+            Subscriptions are issued as NFTs and stored in your wallet.
           </p>
         </div>
       </section>
 
       {!SubscriptionConfigured && (
         <p className="px-4 text-xs text-amber-600">
-          ⚠️ 컨트랙트 미배포 상태입니다. NEXT_PUBLIC_SUBSCRIPTION_PKG /
-          _CONFIG 를 설정하세요.
+          ⚠️ Contract is not deployed. Set NEXT_PUBLIC_SUBSCRIPTION_PKG /
+          _CONFIG.
         </p>
       )}
 
@@ -145,14 +145,14 @@ export default function PricingPage() {
             !SubscriptionConfigured ||
             !!busy
           const label = comingSoon
-            ? "추후 공개"
+            ? "Coming soon"
             : kind === "renew"
-              ? "갱신"
+              ? "Renew"
               : kind === "upgrade"
-                ? "업그레이드"
+                ? "Upgrade"
                 : kind === "lower"
-                  ? "보유 중 상위 플랜"
-                  : "구독 시작"
+                  ? "Higher plan owned"
+                  : "Subscribe"
           const highlight = PLANS[plan].tier === def.tier && activeTier > 0
 
           return (
@@ -173,12 +173,12 @@ export default function PricingPage() {
                   </span>
                   {highlight && (
                     <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
-                      이용 중
+                      Active
                     </span>
                   )}
                   {comingSoon && (
                     <span className="rounded-full bg-grey-200 px-2 py-0.5 text-[10px] font-semibold text-grey-500 dark:bg-grey-700 dark:text-grey-300">
-                      추후 공개
+                      Coming soon
                     </span>
                   )}
                 </div>
@@ -237,7 +237,7 @@ export default function PricingPage() {
           className="flex items-center justify-center gap-2 rounded-2xl border border-grey-200 py-3 text-sm font-semibold text-grey-700 hover:bg-grey-50 dark:border-grey-800 dark:text-grey-200 dark:hover:bg-grey-800"
         >
           <Store size={16} />
-          구독권 거래소
+          Subscription Market
         </Link>
       </section>
     </div>

@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     draft?: unknown
   }
   if (typeof ownerId !== "string" || !ownerId || !draft) {
-    return fail("ownerId/draft 가 필요합니다.", 400)
+    return fail("ownerId/draft are required.", 400)
   }
 
   // 1) 온체인 plan (NFT 소유 = 진짜 소스)
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     plan = currentPlanFromPasses(passes)
   } catch (e) {
     console.error("[api/characters] plan 조회 실패:", e)
-    return fail("플랜 확인에 실패했습니다. 잠시 후 다시 시도해주세요.", 502)
+    return fail("Failed to verify your plan. Please try again shortly.", 502)
   }
 
   // 2) 보유 캐릭터 수
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   // 3) 게이트 (free 차단 + 한도 강제)
   const gate = characterCreateGate(plan, count ?? 0)
   if (!gate.allowed) {
-    return fail(gate.reason ?? "캐릭터를 생성할 수 없습니다.", 403)
+    return fail(gate.reason ?? "Unable to create character.", 403)
   }
 
   // 4) insert

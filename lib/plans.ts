@@ -21,7 +21,7 @@ export const PLANS: Record<Plan, PlanDef> = {
     priceKrw: 0,
     priceLabel: "₩0",
     characterLimit: 0,
-    features: ["공개 캐릭터 1:1 채팅", "짧은 기억 retention", "캐릭터 생성 불가"],
+    features: ["1:1 chat with public characters", "Short memory retention", "No character creation"],
     available: false,
   },
   plus: {
@@ -29,9 +29,9 @@ export const PLANS: Record<Plan, PlanDef> = {
     name: "Plus",
     tier: 1,
     priceKrw: 9900,
-    priceLabel: "₩9,900/월",
+    priceLabel: "₩9,900/mo",
     characterLimit: 2,
-    features: ["1:1 장기 기억 확장", "캐릭터 생성 최대 2개"],
+    features: ["Extended 1:1 long-term memory", "Up to 2 characters"],
     available: true, // 현재 유일하게 구매 가능
   },
   pro: {
@@ -39,9 +39,9 @@ export const PLANS: Record<Plan, PlanDef> = {
     name: "Pro",
     tier: 2,
     priceKrw: 25900,
-    priceLabel: "₩25,900/월",
+    priceLabel: "₩25,900/mo",
     characterLimit: 5,
-    features: ["높은 토큰/기억 한도", "캐릭터 생성 최대 5개", "캐릭터 간 관계 기억"],
+    features: ["Higher token/memory limits", "Up to 5 characters", "Cross-character relationship memory"],
     available: false, // 추후 공개
   },
   max: {
@@ -49,9 +49,9 @@ export const PLANS: Record<Plan, PlanDef> = {
     name: "Max",
     tier: 3,
     priceKrw: 59000,
-    priceLabel: "₩59,000/월",
+    priceLabel: "₩59,000/mo",
     characterLimit: 10,
-    features: ["최고 기억 한도", "캐릭터 생성 최대 10개", "유저 간 맥락 일부 기억"],
+    features: ["Maximum memory limits", "Up to 10 characters", "Partial cross-user context memory"],
     available: false, // 추후 공개
   },
 }
@@ -86,13 +86,13 @@ export function characterCreateGate(
     return {
       allowed: false,
       needUpgrade: true,
-      reason: "캐릭터 생성은 Plus 플랜부터 가능해요",
+      reason: "Character creation requires the Plus plan",
     }
   }
   if (count >= limit) {
     return {
       allowed: false,
-      reason: `${PLANS[plan].name} 플랜은 캐릭터 ${limit}개까지 만들 수 있어요`,
+      reason: `${PLANS[plan].name} plan allows up to ${limit} characters`,
     }
   }
   return { allowed: true }

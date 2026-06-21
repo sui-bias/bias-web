@@ -55,7 +55,7 @@ export default function CharacterCreatePage() {
               href="/pricing"
               className="shrink-0 text-sm font-semibold text-brand underline underline-offset-2"
             >
-              요금제 보기 →
+              View plans →
             </Link>
           )}
         </div>
@@ -65,7 +65,7 @@ export default function CharacterCreatePage() {
         mode="create"
         blockedReason={ready && !gate.allowed ? gate.reason : undefined}
         submitLabel={
-          ready && gate.needUpgrade ? "Plus 플랜으로 업그레이드" : undefined
+          ready && gate.needUpgrade ? "Upgrade to Plus" : undefined
         }
       />
     </div>
