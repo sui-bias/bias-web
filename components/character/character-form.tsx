@@ -103,7 +103,8 @@ export function CharacterForm({
   const errors = useMemo(() => {
     const next: Record<string, string> = {}
     if (!name.trim()) next.name = "Please enter a name."
-    else if (name.trim().length > 20) next.name = "Name must be 20 characters or fewer."
+    else if (name.trim().length > 20)
+      next.name = "Name must be 20 characters or fewer."
     if (!intro.trim()) next.intro = "Please enter a short intro."
     else if (intro.trim().length > 40)
       next.intro = "Intro must be 40 characters or fewer."
@@ -167,9 +168,7 @@ export function CharacterForm({
     }
   }
 
-  async function handleImageChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
+  async function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
     setImgUploading(true)
@@ -215,7 +214,11 @@ export function CharacterForm({
       />
 
       <Section title="Profile">
-        <Field label="Name" required error={submitted ? errors.name : undefined}>
+        <Field
+          label="Name"
+          required
+          error={submitted ? errors.name : undefined}
+        >
           <input
             className={INPUT}
             placeholder="Character name"
@@ -371,7 +374,10 @@ export function CharacterForm({
             onChange={(e) => setSpeechHabits(e.target.value)}
           />
         </Field>
-        <Field label="Texting style" hint="Message length, bubble splitting, etc.">
+        <Field
+          label="Texting style"
+          hint="Message length, bubble splitting, etc."
+        >
           <textarea
             rows={2}
             className={TEXTAREA}
@@ -429,7 +435,10 @@ export function CharacterForm({
             onChange={(e) => setFirstSituation(e.target.value)}
           />
         </Field>
-        <Field label="First message" hint="The character's opening line when you enter the room.">
+        <Field
+          label="First message"
+          hint="The character's opening line when you enter the room."
+        >
           <textarea
             rows={2}
             className={TEXTAREA}
@@ -515,7 +524,8 @@ export function CharacterForm({
         >
           {saving
             ? "Saving…"
-            : (submitLabel ?? (mode === "edit" ? "Save changes" : "Create character"))}
+            : (submitLabel ??
+              (mode === "edit" ? "Save changes" : "Create character"))}
         </button>
       </div>
     </form>
@@ -589,11 +599,7 @@ function SectionImage({
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt=""
-            className="size-full object-cover"
-          />
+          <img src={imageUrl} alt="" className="size-full object-cover" />
         ) : (
           <ImagePlus size={24} />
         )}
@@ -602,9 +608,6 @@ function SectionImage({
             <span className="size-5 animate-spin rounded-full border-2 border-white/70 border-t-white" />
           </span>
         ) : null}
-        <span className="absolute right-0 bottom-0 flex size-7 items-center justify-center rounded-full border-2 border-white bg-brand text-white dark:border-grey-900">
-          <ImagePlus size={14} />
-        </span>
       </button>
       <input
         ref={inputRef}

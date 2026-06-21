@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/app-header"
 import { ChatListItem, type ChatType } from "@/components/chat-list-item"
 import Link from "next/link"
 import { useCurrentUser } from "@/hooks/use-current-user"
-import { getCharacter } from "@/lib/mock"
+import { getCharacter as getDbCharacter } from "@/lib/characters"
 import { listMessages, listRoomsForUser } from "@/lib/rooms"
 import { getUser } from "@/lib/users"
 
@@ -16,7 +16,7 @@ type ChatListRow = {
   preview: string
   time: string
   type: ChatType
-  members?: string[]
+  members?: Array<{ name: string; imageUrl?: string }>
   sortAt: number
 }
 
@@ -28,10 +28,39 @@ function formatTime(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ""
 
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date)
+  const now = new Date()
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  )
+  const startOfTarget = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  )
+
+  const diffDays = Math.floor(
+    (startOfToday.getTime() - startOfTarget.getTime()) / (1000 * 60 * 60 * 24)
+  )
+
+  // 오늘
+  if (diffDays === 0) {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)
+  }
+
+  // 어제
+  if (diffDays === 1) {
+    return "Yesterday"
+  }
+
+  // 그 이전
+  return `${String(date.getMonth() + 1).padStart(2, "0")}.${String(
+    date.getDate()
+  ).padStart(2, "0")}`
 }
 
 export default function ChatPage() {
@@ -61,6 +90,13 @@ export default function ChatPage() {
 
       try {
         const rooms = await listRoomsForUser(address)
+        const characterIds = [
+          ...new Set(
+            rooms
+              .flatMap((room) => room.participants)
+              .flatMap((p) => (p.type === "character" ? [p.characterId] : []))
+          ),
+        ]
         const otherUserAddresses = [
           ...new Set(
             rooms
@@ -81,6 +117,19 @@ export default function ChatPage() {
             .filter((u): u is NonNullable<typeof u> => Boolean(u))
             .map((u) => [u.address, u.display_name])
         )
+        const userImageByAddress = new Map(
+          otherUsers
+            .filter((u): u is NonNullable<typeof u> => Boolean(u))
+            .map((u) => [u.address, u.image_url ?? undefined])
+        )
+        const characterRows = await Promise.all(
+          characterIds.map((characterId) => getDbCharacter(characterId))
+        )
+        const characterById = new Map(
+          characterRows
+            .filter((c): c is NonNullable<typeof c> => Boolean(c))
+            .map((c) => [c.id, c])
+        )
 
         const rows = await Promise.all(
           rooms.map(async (room): Promise<ChatListRow> => {
@@ -98,7 +147,8 @@ export default function ChatPage() {
             if (room.type === "direct") {
               if (character?.type === "character") {
                 title =
-                  getCharacter(character.characterId)?.display_name ?? room.name
+                  characterById.get(character.characterId)?.display_name ??
+                  room.name
               } else if (otherUser?.type === "user") {
                 title =
                   userNameByAddress.get(otherUser.address) ??
@@ -110,17 +160,44 @@ export default function ChatPage() {
               room.type === "group"
                 ? room.participants.map((p) => {
                     if (p.type === "character") {
-                      return (
-                        getCharacter(p.characterId)?.display_name ?? "Character"
-                      )
+                      const characterInfo = characterById.get(p.characterId)
+                      return {
+                        name: characterInfo?.display_name ?? "Character",
+                        imageUrl: characterInfo?.imageUrl,
+                      }
                     }
-                    if (p.address === address) return "You"
-                    return (
-                      userNameByAddress.get(p.address) ??
-                      shortenAddress(p.address)
-                    )
+                    if (p.address === address) return { name: "You" }
+                    return {
+                      name:
+                        userNameByAddress.get(p.address) ??
+                        shortenAddress(p.address),
+                      imageUrl: userImageByAddress.get(p.address),
+                    }
                   })
-                : undefined
+                : (() => {
+                    if (character?.type === "character") {
+                      const characterInfo = characterById.get(
+                        character.characterId
+                      )
+                      return [
+                        {
+                          name: characterInfo?.display_name ?? title,
+                          imageUrl: characterInfo?.imageUrl,
+                        },
+                      ]
+                    }
+                    if (otherUser?.type === "user") {
+                      return [
+                        {
+                          name:
+                            userNameByAddress.get(otherUser.address) ??
+                            shortenAddress(otherUser.address),
+                          imageUrl: userImageByAddress.get(otherUser.address),
+                        },
+                      ]
+                    }
+                    return [{ name: title }]
+                  })()
 
             return {
               roomId: room.id,
@@ -201,7 +278,7 @@ export default function ChatPage() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by character name"
+            placeholder="Search by title"
             className="h-10 w-full rounded-xl border border-grey-200 bg-grey-100 px-3 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
           />
         </div>

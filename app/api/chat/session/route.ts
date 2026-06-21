@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { ensureNamespaceState } from "@/lib/memwal-namespace-state"
 
 function toSessionId(seed: string): number {
   // 32-bit FNV-1a hash, constrained to positive signed int range.
@@ -62,6 +63,11 @@ export async function POST(request: Request) {
 
     const namespace = `room:${roomId}:char:${characterId}:user:${userAddress}`
     const sessionId = toSessionId(namespace)
+    try {
+      await ensureNamespaceState(namespace, sessionId)
+    } catch (error) {
+      console.error("[chat/session] ensureNamespaceState failed:", error)
+    }
     return NextResponse.json({
       sessionId,
       messages: [],
