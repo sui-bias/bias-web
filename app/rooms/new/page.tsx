@@ -1,16 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Check } from "lucide-react"
 import { useCurrentUser } from "@/hooks/use-current-user"
-import { MOCK_CHARACTERS } from "@/lib/mock"
+import { listMyCharacters } from "@/lib/characters"
+import { listCharacterFriends } from "@/lib/character-friends"
+import { listFriends } from "@/lib/friends"
 import { createRoom } from "@/lib/rooms"
-import type { Participant } from "@/lib/types"
+import type { Character, Participant } from "@/lib/types"
+import type { UserRow } from "@/lib/users"
 import { cn } from "@/lib/utils"
 
-const MAX_CHARACTERS = 2
+const MAX_INVITES = 2
+type InviteOption =
+  | {
+      key: string
+      kind: "user"
+      display_name: string
+      imageUrl?: string
+      address: string
+    }
+  | {
+      key: string
+      kind: "character"
+      display_name: string
+      imageUrl?: string
+      characterId: string
+    }
 
 export default function NewRoomPage() {
   const router = useRouter()
@@ -18,14 +36,70 @@ export default function NewRoomPage() {
 
   const [name, setName] = useState("")
   const [picked, setPicked] = useState<string[]>([])
+  const [friends, setFriends] = useState<UserRow[]>([])
+  const [myCharacters, setMyCharacters] = useState<Character[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!address) {
+        if (!cancelled) {
+          setFriends([])
+          setMyCharacters([])
+        }
+        return
+      }
+      const [friendRows, characterRows, addedCharacterRows] = await Promise.all([
+        listFriends(address),
+        listMyCharacters(address),
+        listCharacterFriends(address),
+      ])
+      if (!cancelled) {
+        setFriends(friendRows)
+        const uniqueCharacters = [...characterRows, ...addedCharacterRows].filter(
+          (row, index, rows) => rows.findIndex((v) => v.id === row.id) === index
+        )
+        setMyCharacters(uniqueCharacters)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [address])
+
+  const inviteOptions = useMemo<InviteOption[]>(() => {
+    const userOptions: InviteOption[] = friends.map((f) => ({
+      key: `user:${f.address}`,
+      kind: "user",
+      display_name: f.display_name,
+      imageUrl: f.image_url ?? undefined,
+      address: f.address,
+    }))
+    const characterOptions: InviteOption[] = myCharacters.map((c) => ({
+      key: `character:${c.id}`,
+      kind: "character",
+      display_name: c.display_name,
+      imageUrl: c.imageUrl,
+      characterId: c.id,
+    }))
+    return [...userOptions, ...characterOptions].sort((a, b) =>
+      a.display_name.localeCompare(b.display_name)
+    )
+  }, [friends, myCharacters])
+
+  const pickedOptions = useMemo(
+    () => inviteOptions.filter((option) => picked.includes(option.key)),
+    [inviteOptions, picked]
+  )
 
   function toggle(id: string) {
     setPicked((prev) =>
       prev.includes(id)
         ? prev.filter((x) => x !== id)
-        : prev.length < MAX_CHARACTERS
+        : prev.length < MAX_INVITES
           ? [...prev, id]
           : prev
     )
@@ -44,16 +118,23 @@ export default function NewRoomPage() {
     try {
       const participants: Participant[] = [
         { type: "user", address },
-        ...picked.map(
-          (characterId): Participant => ({
-            type: "character",
-            characterId,
-            ownerAddress: address,
-          })
+        ...pickedOptions.map(
+          (option): Participant =>
+            option.kind === "user"
+              ? {
+                  type: "user",
+                  address: option.address,
+                }
+              : {
+                  type: "character",
+                  characterId: option.characterId,
+                  ownerAddress: address,
+                }
         ),
       ]
+      const roomType = pickedOptions.length === 1 ? "direct" : "group"
       const id = await createRoom({
-        type: "group",
+        type: roomType,
         name: name.trim(),
         ownerAddress: address,
         participants,
@@ -76,7 +157,7 @@ export default function NewRoomPage() {
           <ArrowLeft size={20} />
         </Link>
         <p className="text-lg font-bold text-grey-900 dark:text-white">
-          Create group room
+          Create chat room
         </p>
       </header>
 
@@ -96,38 +177,43 @@ export default function NewRoomPage() {
 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-grey-600 dark:text-grey-300">
-            Invite characters <span className="text-grey-400">(max {MAX_CHARACTERS})</span>
+            Invite Friends & Characters{" "}
+            <span className="text-grey-400">(max {MAX_INVITES})</span>
           </p>
           <div className="grid grid-cols-3 gap-2">
-            {MOCK_CHARACTERS.map((c) => {
-              const on = picked.includes(c.id)
+            {inviteOptions.map((item) => {
+              const on = picked.includes(item.key)
               return (
                 <button
-                  key={c.id}
+                  key={item.key}
                   type="button"
-                  onClick={() => toggle(c.id)}
+                  onClick={() => toggle(item.key)}
                   className={cn(
                     "relative overflow-hidden rounded-xl border-2 transition-all active:scale-95",
-                    on ? "border-brand" : "border-transparent"
+                    on ? "border-brand" : "border-grey-100"
                   )}
                 >
                   <div className="relative aspect-square bg-gradient-to-br from-violet-300 to-indigo-500">
-                    {c.imageUrl ? (
+                    {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={c.imageUrl}
+                        src={item.imageUrl}
                         alt=""
                         className="size-full object-cover"
                       />
                     ) : null}
                     {on ? (
                       <div className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-brand">
-                        <Check size={12} className="text-white" strokeWidth={3} />
+                        <Check
+                          size={12}
+                          className="text-white"
+                          strokeWidth={3}
+                        />
                       </div>
                     ) : null}
                   </div>
                   <p className="truncate bg-white px-1 py-1 text-[11px] font-semibold text-grey-900 dark:bg-grey-800 dark:text-white">
-                    {c.display_name}
+                    {item.display_name}
                   </p>
                 </button>
               )
@@ -145,7 +231,7 @@ export default function NewRoomPage() {
           disabled={!canSubmit}
           className="h-12 w-full rounded-xl bg-brand text-sm font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-40"
         >
-          {saving ? "Creating…" : "Create group room"}
+          {saving ? "Creating…" : "Create"}
         </button>
       </div>
     </div>

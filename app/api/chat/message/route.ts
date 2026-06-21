@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server"
 import { MemWalManual } from "@mysten-incubation/memwal/manual"
 import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc"
+import { createHash } from "node:crypto"
 import { listMessages } from "@/lib/rooms"
 import { getUser } from "@/lib/users"
+import {
+  claimSeedWrite,
+  ensureNamespaceState,
+  finalizeSeedWriteFailure,
+  finalizeSeedWriteSuccess,
+} from "@/lib/memwal-namespace-state"
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
 const RECALL_TOP_K = 5
@@ -11,6 +18,7 @@ const MANUAL_CACHE_MAX_SIZE = 200
 const DEFAULT_MEMWAL_NAMESPACE = "bias-web-chat"
 
 type ImportanceLevel = "HIGH" | "MED" | "LOW"
+type ImportanceSource = "llm" | "fallback_rule" | "guardrail"
 
 type CharacterPayload = {
   name?: string
@@ -59,6 +67,8 @@ type LlmJson = {
   bubbles?: string[]
   emotion?: string
   closeness_delta?: number
+  importance?: ImportanceLevel
+  importance_reason?: string
 }
 
 type ManualClientEntry = {
@@ -155,12 +165,48 @@ function inferImportance(text: string, bubbles: string[]): ImportanceLevel {
   return "LOW"
 }
 
+function importanceRank(value: ImportanceLevel): number {
+  if (value === "HIGH") return 3
+  if (value === "MED") return 2
+  return 1
+}
+
+function isImportanceLevel(value: unknown): value is ImportanceLevel {
+  return value === "HIGH" || value === "MED" || value === "LOW"
+}
+
+function pickImportance(
+  llmImportance: unknown,
+  fallbackImportance: ImportanceLevel
+): { importance: ImportanceLevel; source: ImportanceSource } {
+  if (!isImportanceLevel(llmImportance)) {
+    return { importance: fallbackImportance, source: "fallback_rule" }
+  }
+
+  // Guardrail: 룰 기반이 더 높은 중요도로 잡히면 상향 보정한다.
+  if (importanceRank(fallbackImportance) > importanceRank(llmImportance)) {
+    return { importance: fallbackImportance, source: "guardrail" }
+  }
+
+  return { importance: llmImportance, source: "llm" }
+}
+
 function toNamespace(
   roomId: string,
   characterId: string,
   userAddress: string
 ): string {
   return `room:${roomId}:char:${characterId}:user:${userAddress}`
+}
+
+function toSessionId(seed: string): number {
+  // 32-bit FNV-1a hash, constrained to positive signed int range.
+  let hash = 0x811c9dc5
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0) & 0x7fffffff
 }
 
 function safeArray(value: unknown): string[] {
@@ -263,6 +309,25 @@ async function rememberTurn(
   }
 }
 
+async function writeNamespaceSeed(
+  namespace: string,
+  accountId: string,
+  seedPayload: string
+): Promise<{ status: "stored" | "failed"; detail: string }> {
+  try {
+    const client = getManualClient(accountId)
+    await client.rememberManual(seedPayload, namespace)
+    return { status: "stored", detail: "" }
+  } catch (error) {
+    manualClientCache.get(accountId)?.client.destroy()
+    manualClientCache.delete(accountId)
+    return {
+      status: "failed",
+      detail: error instanceof Error ? error.message : "unknown",
+    }
+  }
+}
+
 async function callLlm(
   systemPrompt: string,
   history: string,
@@ -286,7 +351,7 @@ async function callLlm(
           role: "system",
           content:
             `${systemPrompt}\n\n` +
-            "Return JSON with keys: bubbles(string[] max 3), emotion(string), closeness_delta(number -3..3).",
+            "Return JSON with keys: bubbles(string[] max 3), emotion(string), closeness_delta(number -3..3), importance(enum: HIGH|MED|LOW), importance_reason(string <= 120 chars).",
         },
         {
           role: "user",
@@ -318,6 +383,14 @@ async function callLlm(
       emotion: typeof parsed.emotion === "string" ? parsed.emotion : "neutral",
       closeness_delta:
         typeof parsed.closeness_delta === "number" ? parsed.closeness_delta : 0,
+      importance:
+        typeof parsed.importance === "string"
+          ? (parsed.importance.toUpperCase().trim() as ImportanceLevel)
+          : undefined,
+      importance_reason:
+        typeof parsed.importance_reason === "string"
+          ? parsed.importance_reason
+          : undefined,
     }
   } catch {
     return { bubbles: [raw], emotion: "neutral", closeness_delta: 0 }
@@ -351,14 +424,71 @@ export async function POST(request: Request) {
     }
 
     const namespace = toNamespace(roomId, characterId, userAddress)
+    const sessionId =
+      typeof body.sessionId === "number" && Number.isFinite(body.sessionId)
+        ? Math.trunc(body.sessionId)
+        : toSessionId(namespace)
     const user = await getUser(userAddress)
     const accountId = user?.memwal_account_id?.trim()
+    const persona = buildPersona(characterId, body.character)
+
+    try {
+      await ensureNamespaceState(namespace, sessionId)
+    } catch (error) {
+      console.error("[chat/message] ensureNamespaceState failed:", error)
+    }
+
+    if (accountId) {
+      let claimedSeed = false
+      try {
+        claimedSeed = await claimSeedWrite(namespace, sessionId)
+        if (claimedSeed) {
+          const seedPayload =
+            "[Seed Type]\nnamespace_bootstrap\n\n" +
+            `[Namespace]\n${namespace}\n\n` +
+            "[Character Persona]\n" +
+            persona
+          const seedFingerprint = createHash("sha256")
+            .update(seedPayload)
+            .digest("hex")
+          const seedResult = await writeNamespaceSeed(
+            namespace,
+            accountId,
+            seedPayload
+          )
+          if (seedResult.status === "stored") {
+            await finalizeSeedWriteSuccess(namespace, seedFingerprint, sessionId)
+          } else {
+            await finalizeSeedWriteFailure(namespace, seedResult.detail, sessionId)
+          }
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "unknown"
+        console.error("[chat/message] seed write flow failed:", error)
+        if (claimedSeed) {
+          try {
+            await finalizeSeedWriteFailure(namespace, detail, sessionId)
+          } catch (finalizeError) {
+            console.error(
+              "[chat/message] finalizeSeedWriteFailure failed:",
+              finalizeError
+            )
+          }
+        }
+      }
+    }
+
     const messages = await listMessages(roomId)
     const history = messages
-      .slice(-20)
+      .slice(-30)
       .map((msg) => {
-        if (msg.sender.type === "user") return `user: ${msg.text}`
-        return `assistant: ${msg.text}`
+        if (msg.sender.type === "user") {
+          return `user(${msg.sender.address}): ${msg.text}`
+        }
+        if (msg.sender.characterId === characterId) {
+          return `assistant(self:${characterId}): ${msg.text}`
+        }
+        return `character(${msg.sender.characterId}): ${msg.text}`
       })
       .join("\n")
 
@@ -375,12 +505,14 @@ export async function POST(request: Request) {
       recallDetail = "missing memwal account id"
     }
 
-    const persona = buildPersona(characterId, body.character)
     const recalledBlock = recalled.length
       ? recalled.map((item, idx) => `${idx + 1}. ${item}`).join("\n")
       : "- none"
     const systemPrompt =
       "You are role-playing the character profile below. Stay in-character.\n" +
+      `Your speaker identity is assistant(self:${characterId}).\n` +
+      "Lines starting with character(...) are other participants, not you.\n" +
+      "Never speak for other characters and never merge identities.\n\n" +
       "[Character Persona]\n" +
       `${persona}\n\n` +
       "[Recalled Memories]\n" +
@@ -388,7 +520,11 @@ export async function POST(request: Request) {
 
     const llm = await callLlm(systemPrompt, history, text)
     const bubbles = Array.isArray(llm.bubbles) ? llm.bubbles : ["..."]
-    const importance = inferImportance(text, bubbles)
+    const fallbackImportance = inferImportance(text, bubbles)
+    const { importance, source: importanceSource } = pickImportance(
+      llm.importance,
+      fallbackImportance
+    )
 
     let memwalStatus = "skipped"
     let memwalDetail = ""
@@ -397,7 +533,7 @@ export async function POST(request: Request) {
         namespace,
         accountId,
         importance,
-        `user: ${text}\nassistant: ${bubbles.join(" | ")}`
+        `user(${userAddress}): ${text}\nassistant(self:${characterId}): ${bubbles.join(" | ")}`
       )
       memwalStatus = remember.status
       memwalDetail = remember.detail
@@ -413,7 +549,7 @@ export async function POST(request: Request) {
         typeof llm.closeness_delta === "number" ? llm.closeness_delta : 0,
       closeness_total: 0,
       importance,
-      importance_source: "fallback_rule",
+      importance_source: importanceSource,
       namespace,
       recall_hits: recalled.length,
       recall_status: recallStatus,

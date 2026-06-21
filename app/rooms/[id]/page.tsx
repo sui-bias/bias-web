@@ -2,9 +2,12 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
+  ArrowDownToLine,
   ArrowLeft,
   CircleMinus,
+  LogOut,
   MoreVertical,
   SendHorizonal,
   UserPlus,
@@ -12,12 +15,24 @@ import {
 import { useCurrentUser } from "@/hooks/use-current-user"
 import { getCharacter } from "@/lib/characters"
 import { addFriend, isFriend } from "@/lib/friends"
-import { addMessage, getRoom, listMessages } from "@/lib/rooms"
+import {
+  addMessage,
+  getRoom,
+  leaveRoomForUser,
+  listMessages,
+} from "@/lib/rooms"
 import { getUser, type UserRow } from "@/lib/users"
-import type { Character, Message, Room, SenderRef } from "@/lib/types"
+import type {
+  Character,
+  Message,
+  Participant,
+  Room,
+  SenderRef,
+} from "@/lib/types"
 import { AppHeader } from "@/components/app-header"
 
 const CHARACTER_BUBBLE_DELAY_MS = 1400
+type CharacterParticipant = Extract<Participant, { type: "character" }>
 
 function senderName(
   sender: SenderRef,
@@ -51,10 +66,109 @@ function formatMessageTime(iso: string): string {
   }).format(date)
 }
 
+function dayKey(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
+
+function formatDayLabel(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(d)
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+function normalizeText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, "")
+}
+
+function characterNameTokens(
+  participant: CharacterParticipant,
+  characterById: Record<string, Character>
+): string[] {
+  const displayName = characterById[participant.characterId]?.display_name ?? ""
+  const splitNames = displayName
+    .split(/[\s_\-./]+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+  return [...new Set([displayName, participant.characterId, ...splitNames])]
+}
+
+function pickResponders(input: {
+  text: string
+  characterParticipants: CharacterParticipant[]
+  characterById: Record<string, Character>
+  messages: Message[]
+}): CharacterParticipant[] {
+  const { text, characterParticipants, characterById, messages } = input
+  if (!characterParticipants.length) return []
+
+  const normalizedText = normalizeText(text)
+  const explicitlyCalled = characterParticipants.filter((participant) => {
+    const tokens = characterNameTokens(participant, characterById)
+    return tokens.some((token) => {
+      const normalizedToken = normalizeText(token)
+      return (
+        normalizedToken.length > 1 && normalizedText.includes(normalizedToken)
+      )
+    })
+  })
+  if (explicitlyCalled.length) return explicitlyCalled
+
+  const recentCharacterMessages = [...messages]
+    .reverse()
+    .filter((message) => message.sender.type === "character")
+  const recentCharacterId =
+    recentCharacterMessages[0]?.sender.type === "character"
+      ? recentCharacterMessages[0].sender.characterId
+      : null
+
+  const looksDirected =
+    /[?？]/.test(text) ||
+    /(야|아)[\s!,.?~]*$/u.test(text.trim()) ||
+    /\b(can you|could you|tell me|what|why|how)\b/i.test(text)
+
+  if (looksDirected && recentCharacterId) {
+    const recentCharacter = characterParticipants.find(
+      (participant) => participant.characterId === recentCharacterId
+    )
+    if (recentCharacter) return [recentCharacter]
+  }
+
+  // 연속 발화를 줄이기 위해 직전 캐릭터를 기본 후보군에서 제외한다.
+  const pool =
+    recentCharacterId && characterParticipants.length > 1
+      ? characterParticipants.filter(
+          (participant) => participant.characterId !== recentCharacterId
+        )
+      : characterParticipants
+
+  const recentFromPool = recentCharacterMessages.find((message) =>
+    pool.some(
+      (participant) =>
+        message.sender.type === "character" &&
+        participant.characterId === message.sender.characterId
+    )
+  )
+  if (recentFromPool && recentFromPool.sender.type === "character") {
+    const recentCharacterFromPoolId = recentFromPool.sender.characterId
+    const picked = pool.find(
+      (participant) => participant.characterId === recentCharacterFromPoolId
+    )
+    if (picked) return [picked]
+  }
+
+  return [pool[Math.floor(Math.random() * pool.length)]]
 }
 
 export default function RoomPage({
@@ -64,20 +178,28 @@ export default function RoomPage({
 }) {
   const { id } = use(params)
   const { address } = useCurrentUser()
+  const router = useRouter()
 
   const [room, setRoom] = useState<Room | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
-  const [sessionId, setSessionId] = useState<number | null>(null)
+  const [typingCharacterId, setTypingCharacterId] = useState<string | null>(
+    null
+  )
+  const [sessionByCharacterId, setSessionByCharacterId] = useState<
+    Record<string, number>
+  >({})
   const [otherUser, setOtherUser] = useState<UserRow | null>(null)
   const [otherFriend, setOtherFriend] = useState(false)
   const [characterById, setCharacterById] = useState<Record<string, Character>>(
     {}
   )
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const firstMessageBootstrappedRef = useRef(false)
+  const optionsRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     firstMessageBootstrappedRef.current = false
@@ -99,6 +221,24 @@ export default function RoomPage({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  useEffect(() => {
+    if (!optionsOpen) return
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (
+        optionsRef.current &&
+        !optionsRef.current.contains(event.target as Node)
+      ) {
+        setOptionsOpen(false)
+      }
+    }
+
+    window.addEventListener("mousedown", handleMouseDown)
+    return () => {
+      window.removeEventListener("mousedown", handleMouseDown)
+    }
+  }, [optionsOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -227,31 +367,80 @@ export default function RoomPage({
       await addMessage(id, { type: "user", address }, text)
       await refresh()
 
-      // direct 방 + 채팅 가능 캐릭터 → bias-chat 으로 응답 받아 저장
-      const charP = room?.participants.find((p) => p.type === "character")
-      let character =
-        charP?.type === "character"
-          ? characterById[charP.characterId]
-          : undefined
+      // 방에 캐릭터가 있으면(direct/group 공통) 순서대로 응답 생성
+      const characterParticipants = (room?.participants ?? []).filter(
+        (participant): participant is CharacterParticipant =>
+          participant.type === "character"
+      )
+      const responders = pickResponders({
+        text,
+        characterParticipants,
+        characterById,
+        messages,
+      })
 
-      if (!character && charP?.type === "character") {
-        const fetched = await getCharacter(charP.characterId)
-        if (fetched) {
-          character = fetched
-          setCharacterById((prev) => ({ ...prev, [fetched.id]: fetched }))
-        }
-      }
+      for (const participant of responders) {
+        try {
+          setTypingCharacterId(participant.characterId)
+          let character = characterById[participant.characterId]
+          if (!character) {
+            const fetched = await getCharacter(participant.characterId)
+            if (!fetched) continue
+            character = fetched
+            setCharacterById((prev) => ({ ...prev, [fetched.id]: fetched }))
+          }
 
-      if (room?.type === "direct" && character) {
-        let sid = sessionId
-        if (sid == null) {
-          const sres = await fetch("/api/chat/session", {
+          let sid = sessionByCharacterId[participant.characterId]
+          if (sid == null) {
+            const sres = await fetch("/api/chat/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                characterId: character.id,
+                roomId: id,
+                userAddress: address,
+                character: {
+                  name: character.display_name,
+                  age: character.age,
+                  job: character.job,
+                  nativeLanguage: character.nativeLanguage,
+                  narrative: character.narrative,
+                  background: character.background,
+                  family: character.family,
+                  mbti: character.mbti,
+                  height: character.height,
+                  traits: character.traits,
+                  textingStyle: character.textingStyle,
+                  likes: character.likes,
+                  dislikes: character.dislikes,
+                  hidden: character.hidden,
+                  bannedTopics: character.bannedTopics,
+                  firstSituation: character.firstSituation,
+                  affinityStart: character.affinityStart,
+                  ownerId: character.ownerId,
+                  chatCharacterId: character.chatCharacterId,
+                  speechHabits: character.speechHabits,
+                },
+              }),
+            })
+            const sjson = await sres.json()
+            if (!sres.ok) throw new Error(sjson?.error ?? "session failed")
+            sid = sjson.sessionId as number
+            setSessionByCharacterId((prev) => ({
+              ...prev,
+              [participant.characterId]: sid as number,
+            }))
+          }
+
+          const mres = await fetch("/api/chat/message", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              characterId: character.id,
+              sessionId: sid,
+              text,
               roomId: id,
               userAddress: address,
+              characterId: character.id,
               character: {
                 name: character.display_name,
                 age: character.age,
@@ -276,56 +465,19 @@ export default function RoomPage({
               },
             }),
           })
-          const sjson = await sres.json()
-          if (!sres.ok) throw new Error(sjson?.error ?? "session failed")
-          sid = sjson.sessionId as number
-          setSessionId(sid)
-        }
-        const mres = await fetch("/api/chat/message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: sid,
-            text,
-            roomId: id,
-            userAddress: address,
-            characterId: character.id,
-            character: {
-              name: character.display_name,
-              age: character.age,
-              job: character.job,
-              nativeLanguage: character.nativeLanguage,
-              narrative: character.narrative,
-              background: character.background,
-              family: character.family,
-              mbti: character.mbti,
-              height: character.height,
-              traits: character.traits,
-              textingStyle: character.textingStyle,
-              likes: character.likes,
-              dislikes: character.dislikes,
-              hidden: character.hidden,
-              bannedTopics: character.bannedTopics,
-              firstSituation: character.firstSituation,
-              affinityStart: character.affinityStart,
-              ownerId: character.ownerId,
-              chatCharacterId: character.chatCharacterId,
-              speechHabits: character.speechHabits,
-            },
-          }),
-        })
-        const mjson = await mres.json()
-        if (
-          mres.ok &&
-          Array.isArray(mjson.bubbles) &&
-          charP?.type === "character"
-        ) {
+          const mjson = await mres.json()
+          if (!mres.ok || !Array.isArray(mjson.bubbles)) {
+            setTypingCharacterId(null)
+            continue
+          }
+
           const turnId = crypto.randomUUID()
           const bubbles = mjson.bubbles as string[]
+          setTypingCharacterId(null)
           for (let index = 0; index < bubbles.length; index += 1) {
             await addMessage(
               id,
-              { type: "character", characterId: charP.characterId },
+              { type: "character", characterId: participant.characterId },
               bubbles[index],
               turnId
             )
@@ -334,14 +486,17 @@ export default function RoomPage({
               await sleep(CHARACTER_BUBBLE_DELAY_MS)
             }
           }
+        } catch {
+          // 한 캐릭터 생성/응답 실패가 전체 전송을 막지 않도록 한다.
+          setTypingCharacterId(null)
         }
       }
     } catch {
       // bias-chat 미연결(로컬 5001 없음) 등 — 사용자 메시지는 이미 저장됨
     } finally {
+      setTypingCharacterId(null)
       setSending(false)
     }
-    // TODO: 캐릭터 자율 발화 — 백엔드 멀티 캐릭터 세션 나오면 여기서 트리거
   }
 
   if (loading) {
@@ -366,6 +521,45 @@ export default function RoomPage({
   }
 
   const characters = room.participants.filter((p) => p.type === "character")
+  const myCharacters = characters.filter(
+    (p) => p.type === "character" && address && p.ownerAddress === address
+  )
+  const canExportMemwal = myCharacters.length > 0
+
+  async function handleLeaveRoom() {
+    if (!address) return
+    setOptionsOpen(false)
+
+    const confirmed = window.confirm("Leave this room?")
+    if (!confirmed) return
+
+    try {
+      await leaveRoomForUser(id, address)
+      router.replace("/chat")
+    } catch {
+      alert("Failed to leave the room.")
+    }
+  }
+
+  async function handleExportMemwalInfo() {
+    if (!address || !canExportMemwal) return
+    setOptionsOpen(false)
+
+    const user = await getUser(address)
+    const accountId = user?.memwal_account_id?.trim() || "(none)"
+    const namespaceLines = myCharacters.map(
+      (participant, index) =>
+        `namespace${index + 1}: room:${id}:char:${participant.characterId}:user:${address}`
+    )
+    const content = [`accountId: ${accountId}`, ...namespaceLines].join("\n")
+
+    try {
+      await navigator.clipboard.writeText(content)
+      alert(`Copied to clipboard:\n\n${content}`)
+    } catch {
+      alert("Failed to get character information")
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -404,12 +598,38 @@ export default function RoomPage({
             </div>
           }
           right={
-            <button
-              aria-label="Chat options"
-              className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
-            >
-              <MoreVertical size={18} />
-            </button>
+            <div ref={optionsRef} className="relative">
+              <button
+                type="button"
+                aria-label="Chat options"
+                onClick={() => setOptionsOpen((prev) => !prev)}
+                className="flex size-9 items-center justify-center rounded-full text-grey-700 transition-colors hover:bg-grey-100 dark:text-grey-200 dark:hover:bg-grey-800"
+              >
+                <MoreVertical size={18} />
+              </button>
+              {optionsOpen ? (
+                <div className="absolute top-11 right-0 z-30 w-56 rounded-xl border border-grey-200 bg-white p-1 shadow-lg dark:border-grey-700 dark:bg-grey-900">
+                  <button
+                    type="button"
+                    onClick={handleLeaveRoom}
+                    className="flex w-full items-center gap-1 rounded-lg px-3 py-2 text-left text-sm text-grey-900 transition-colors hover:bg-grey-100 dark:text-white dark:hover:bg-grey-800"
+                  >
+                    <LogOut size={14} />
+                    leave room
+                  </button>
+                  {canExportMemwal ? (
+                    <button
+                      type="button"
+                      onClick={handleExportMemwalInfo}
+                      className="flex w-full items-center gap-1 rounded-lg px-3 py-2 text-left text-sm text-grey-900 transition-colors hover:bg-grey-100 dark:text-white dark:hover:bg-grey-800"
+                    >
+                      <ArrowDownToLine size={14} />
+                      export character
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           }
         />
 
@@ -454,6 +674,8 @@ export default function RoomPage({
               m.sender.type === "user" && m.sender.address === address
             const prev = messages[index - 1]
             const showSenderName = !prev || !isSameSender(prev.sender, m.sender)
+            const showDateDivider =
+              !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
 
             const avatarUrl =
               m.sender.type === "character"
@@ -468,63 +690,110 @@ export default function RoomPage({
               characterById
             ).slice(0, 1)
 
-            return mine ? (
-              <div
-                key={m.id}
-                className="ml-auto flex flex-row-reverse items-end gap-1"
-              >
-                <div className="rounded-2xl rounded-tr-sm bg-brand px-4 py-3 text-sm text-white">
-                  {m.text}
-                </div>
-                <p
-                  className="flex-shrink-0 pl-1 text-right text-[10px] text-grey-500 dark:text-grey-400"
-                  style={{
-                    whiteSpace: "nowrap",
-                    alignSelf: "flex-end",
-                  }}
-                >
-                  {formatMessageTime(m.createdAt)}
-                </p>
-              </div>
-            ) : (
-              <div key={m.id} className="flex max-w-[88%] gap-2">
-                {showSenderName ? (
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
-                    {avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={avatarUrl}
-                        alt={senderName(m.sender, address, characterById)}
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex size-full items-center justify-center text-xs font-semibold text-grey-700 dark:text-grey-100">
-                        {avatarFallback}
-                      </div>
-                    )}
+            return (
+              <div key={m.id}>
+                {showDateDivider ? (
+                  <div className="my-3 flex items-center justify-center">
+                    <span className="rounded-full bg-grey-100 px-3 py-1 text-[11px] text-grey-500 dark:bg-grey-800 dark:text-grey-300">
+                      {formatDayLabel(m.createdAt)}
+                    </span>
                   </div>
-                ) : (
-                  <div className="size-10" />
-                )}
-                <div className="min-w-0">
-                  {showSenderName ? (
-                    <p className="mb-0.5 text-[11px] text-grey-500 dark:text-grey-400">
-                      {senderName(m.sender, address, characterById)}
-                    </p>
-                  ) : null}
-                  <div className="ml-auto flex flex-row items-end gap-1">
-                    <div className="rounded-2xl rounded-tl-sm bg-grey-100 px-4 py-3 text-sm text-grey-900 dark:bg-grey-800 dark:text-grey-100">
+                ) : null}
+
+                {mine ? (
+                  <div
+                    key={m.id}
+                    className="ml-auto flex flex-row-reverse items-end gap-1"
+                  >
+                    <div className="rounded-2xl rounded-tr-sm bg-brand px-4 py-3 text-sm text-white">
                       {m.text}
                     </div>
-                    <p className="flex-shrink-0 text-right text-[10px] text-grey-500 dark:text-grey-400">
+                    <p
+                      className="flex-shrink-0 pl-1 text-right text-[10px] text-grey-500 dark:text-grey-400"
+                      style={{
+                        whiteSpace: "nowrap",
+                        alignSelf: "flex-end",
+                      }}
+                    >
                       {formatMessageTime(m.createdAt)}
                     </p>
                   </div>
-                </div>
+                ) : (
+                  <div key={m.id} className="flex max-w-[88%] gap-2">
+                    {showSenderName ? (
+                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={avatarUrl}
+                            alt={senderName(m.sender, address, characterById)}
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center text-xs font-semibold text-grey-700 dark:text-grey-100">
+                            {avatarFallback}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="size-10" />
+                    )}
+                    <div className="min-w-0">
+                      {showSenderName ? (
+                        <p className="mb-0.5 text-[11px] text-grey-500 dark:text-grey-400">
+                          {senderName(m.sender, address, characterById)}
+                        </p>
+                      ) : null}
+                      <div className="ml-auto flex flex-row items-end gap-1">
+                        <div className="rounded-2xl rounded-tl-sm bg-grey-100 px-4 py-3 text-sm text-grey-900 dark:bg-grey-800 dark:text-grey-100">
+                          {m.text}
+                        </div>
+                        <p className="flex-shrink-0 text-right text-[10px] text-grey-500 dark:text-grey-400">
+                          {formatMessageTime(m.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })
         )}
+        {typingCharacterId ? (
+          <div className="flex max-w-[88%] gap-2">
+            <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
+              {characterById[typingCharacterId]?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={characterById[typingCharacterId]?.imageUrl}
+                  alt={
+                    characterById[typingCharacterId]?.display_name ??
+                    "Character"
+                  }
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div className="flex size-full items-center justify-center text-xs font-semibold text-grey-700 dark:text-grey-100">
+                  {(
+                    characterById[typingCharacterId]?.display_name ?? "C"
+                  ).slice(0, 1)}
+                </div>
+              )}
+            </div>
+            <div className="rounded-2xl rounded-tl-sm bg-grey-100 px-4 py-3 text-sm text-grey-500 dark:bg-grey-800 dark:text-grey-300">
+              <div
+                className="bubble-row flex items-end justify-end gap-2"
+                style={{ animationDelay: `${4 * 0.75}s` }}
+              >
+                <span className="mt-0.5 flex h-5 items-center gap-1">
+                  <span className="dot">•</span>
+                  <span className="dot dot-2">•</span>
+                  <span className="dot dot-3">•</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div ref={bottomRef} />
       </div>
 
@@ -552,6 +821,29 @@ export default function RoomPage({
           </button>
         </div>
       </div>
+
+      <style jsx>{`
+        .dot {
+          animation: typing 1s steps(1, end) infinite;
+        }
+        .dot-2 {
+          animation-delay: 0.12s;
+        }
+        .dot-3 {
+          animation-delay: 0.24s;
+        }
+        @keyframes typing {
+          0%,
+          100% {
+            opacity: 0.25;
+            transform: translateY(0);
+          }
+          50% {
+            opacity: 1;
+            transform: translateY(-1px);
+          }
+        }
+      `}</style>
     </div>
   )
 }

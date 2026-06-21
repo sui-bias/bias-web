@@ -121,15 +121,13 @@ export default function CharacterGatePage() {
       <div className="grid grid-cols-2 gap-3 px-4 py-4 pb-36">
         {characters.map((char, index) => {
           const isSelected = selected === char.id
-          const chatReady = Boolean(char.chatCharacterId)
           return (
             <button
               key={char.id}
-              onClick={() => chatReady && setSelected(char.id)}
-              disabled={!chatReady}
+              onClick={() => setSelected(char.id)}
               className={cn(
                 "relative flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all",
-                chatReady ? "active:scale-95" : "cursor-not-allowed",
+                "active:scale-95",
                 isSelected ? "border-brand shadow-lg shadow-brand/20" : "border"
               )}
             >
@@ -145,10 +143,7 @@ export default function CharacterGatePage() {
                   <img
                     src={char.imageUrl}
                     alt=""
-                    className={cn(
-                      "size-full object-cover",
-                      !chatReady && "opacity-60"
-                    )}
+                    className="size-full object-cover"
                   />
                 ) : null}
                 {/* Genre badge */}
@@ -162,14 +157,6 @@ export default function CharacterGatePage() {
                         {genre}
                       </span>
                     ))}
-                  </div>
-                ) : null}
-                {/* Coming soon (채팅 미지원) */}
-                {!chatReady ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-                    <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-grey-700">
-                      Coming soon
-                    </span>
                   </div>
                 ) : null}
                 {/* Selection check */}

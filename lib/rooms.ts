@@ -220,6 +220,28 @@ export async function listRoomsForUser(address: string): Promise<Room[]> {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
+/** 유저가 방에서 나가기(내 user 멤버 + 내가 데려온 character 멤버 제거). */
+export async function leaveRoomForUser(
+  roomId: string,
+  address: string
+): Promise<void> {
+  const { error: userDeleteError } = await supabase
+    .from("room_members")
+    .delete()
+    .eq("room_id", roomId)
+    .eq("member_type", "user")
+    .eq("member_id", address)
+  if (userDeleteError) throw new Error(userDeleteError.message)
+
+  const { error: characterDeleteError } = await supabase
+    .from("room_members")
+    .delete()
+    .eq("room_id", roomId)
+    .eq("member_type", "character")
+    .eq("owner_address", address)
+  if (characterDeleteError) throw new Error(characterDeleteError.message)
+}
+
 /** 메시지 저장(말풍선 하나). */
 export async function addMessage(
   roomId: string,

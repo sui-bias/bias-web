@@ -31,9 +31,7 @@ export default function ProfileEditPage() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [user])
 
-  async function handleImageChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
+  async function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
     setUploading(true)
@@ -106,9 +104,9 @@ export default function ProfileEditPage() {
           ) : (
             <ImagePlus size={24} />
           )}
-          <span className="absolute right-0 bottom-0 flex size-7 items-center justify-center rounded-full border-2 border-white bg-brand text-white dark:border-grey-900">
+          {/* <span className="absolute right-0 bottom-0 flex size-7 items-center justify-center rounded-full border-2 border-white bg-brand text-white dark:border-grey-900">
             <ImagePlus size={14} />
-          </span>
+          </span> */}
         </button>
         <input
           ref={fileRef}

@@ -21,7 +21,7 @@ export function FriendListItem({
   const content = (
     <>
       <div className="relative size-10 shrink-0">
-        <div className="flex size-10 items-center justify-center overflow-hidden rounded-full bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
+        <div className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-grey-200 text-sm font-medium text-grey-700 dark:bg-grey-700 dark:text-grey-100">
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={imageUrl} alt="" className="size-full object-cover" />
@@ -49,7 +49,7 @@ export function FriendListItem({
   )
 
   return (
-    <li className="flex items-center gap-3 py-3">
+    <li className="flex items-center gap-3 py-1">
       {href ? (
         <Link
           href={href}
