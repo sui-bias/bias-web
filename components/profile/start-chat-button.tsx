@@ -11,18 +11,16 @@ import { ProfileActionButton } from "./profile-hero"
 export function StartChatButton({
   characterId,
   characterName,
-  chatReady,
 }: {
   characterId: string
   characterName: string
-  chatReady: boolean
 }) {
   const router = useRouter()
   const { address } = useCurrentUser()
   const [busy, setBusy] = useState(false)
 
   async function start() {
-    if (!chatReady || busy) return
+    if (busy) return
     if (!address) {
       alert("Connect your wallet to continue.")
       return
@@ -44,8 +42,7 @@ export function StartChatButton({
   return (
     <ProfileActionButton
       icon={MessageCircle}
-      label={chatReady ? (busy ? "Opening…" : "Chat") : "Coming soon"}
-      disabled={!chatReady}
+      label={busy ? "Opening…" : "Chat"}
       onClick={start}
       primary
     />

@@ -6,11 +6,7 @@ import { CharacterEditButton } from "./character-edit-button"
 
 // 캐릭터 Profile = 유저 Profile 레이아웃 + '친구 정보' 섹션.
 // hidden / bannedTopics 같은 내부 Settings은 노출하지 않는다.
-export function CharacterProfileView({
-  character,
-}: {
-  character: Character
-}) {
+export function CharacterProfileView({ character }: { character: Character }) {
   const meta = [
     character.age ? `${character.age}` : null,
     character.job,
@@ -35,10 +31,13 @@ export function CharacterProfileView({
             <StartChatButton
               characterId={character.id}
               characterName={character.display_name}
-              chatReady={Boolean(character.chatCharacterId)}
             />
             {/* TODO: 그룹 기능(M5) 연동 전까지 비활성 */}
-            <ProfileActionButton icon={UserPlus} label="Add to group" disabled />
+            <ProfileActionButton
+              icon={UserPlus}
+              label="Add to group"
+              disabled
+            />
           </>
         }
       />

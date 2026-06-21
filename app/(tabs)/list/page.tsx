@@ -5,30 +5,39 @@ import { Search, Settings, UserPlus, X } from "lucide-react"
 import Link from "next/link"
 import { AppHeader } from "@/components/app-header"
 import { FriendListItem } from "@/components/friend-list-item"
-import { MOCK_CHARACTERS } from "@/lib/mock"
 import { useCurrentUser } from "@/hooks/use-current-user"
+import { listMyCharacters } from "@/lib/characters"
 import { listFriends } from "@/lib/friends"
+import type { Character } from "@/lib/types"
 import type { UserRow } from "@/lib/users"
-
-const CHARACTERS = [...MOCK_CHARACTERS].sort((a, b) =>
-  a.display_name.localeCompare(b.display_name, ["ko", "en"], {
-    sensitivity: "base",
-  })
-)
 
 export default function ListPage() {
   const { address, user, loading } = useCurrentUser()
   const displayName = user?.display_name ?? (loading ? "…" : "Guest")
 
   const [friends, setFriends] = useState<UserRow[]>([])
+  const [myCharacters, setMyCharacters] = useState<Character[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState("")
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const rows = address ? await listFriends(address) : []
-      if (!cancelled) setFriends(rows)
+      if (!address) {
+        if (!cancelled) {
+          setFriends([])
+          setMyCharacters([])
+        }
+        return
+      }
+      const [friendRows, characterRows] = await Promise.all([
+        listFriends(address),
+        listMyCharacters(address),
+      ])
+      if (!cancelled) {
+        setFriends(friendRows)
+        setMyCharacters(characterRows)
+      }
     }
     load()
     return () => {
@@ -37,13 +46,30 @@ export default function ListPage() {
   }, [address])
 
   const q = query.trim().toLowerCase()
-  const characters = useMemo(
-    () =>
-      q
-        ? CHARACTERS.filter((c) => c.display_name.toLowerCase().includes(q))
-        : CHARACTERS,
-    [q]
-  )
+  const listItems = useMemo(() => {
+    const friendItems = friends.map((f) => ({
+      key: `user:${f.address}`,
+      display_name: f.display_name,
+      intro: `@${f.username}`,
+      imageUrl: f.image_url ?? undefined,
+      kind: "user" as const,
+      href: `/list/${f.address}`,
+    }))
+    const characterItems = myCharacters.map((c) => ({
+      key: `character:${c.id}`,
+      display_name: c.display_name,
+      intro: c.intro,
+      imageUrl: c.imageUrl,
+      kind: "character" as const,
+      href: `/list/${c.id}`,
+    }))
+
+    return [...friendItems, ...characterItems]
+      .sort((a, b) => a.display_name.localeCompare(b.display_name))
+      .filter((item) =>
+        q ? item.display_name.toLowerCase().includes(q) : true
+      )
+  }, [friends, myCharacters, q])
 
   return (
     <div className="space-y-4 pt-6">
@@ -103,7 +129,7 @@ export default function ListPage() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by character name"
+            placeholder="Search by name"
             className="h-10 w-full rounded-xl border border-grey-200 bg-grey-100 px-3 text-sm text-grey-900 outline-none focus:border-brand dark:border-grey-700 dark:bg-grey-800 dark:text-white"
           />
         </div>
@@ -111,34 +137,23 @@ export default function ListPage() {
 
       <section className="border-t border-grey-200 p-4 dark:border-grey-800">
         <div className="text-sm font-semibold text-grey-900 dark:text-white">
-          {q ? "Characters" : "Friends"}
+          {q ? "Results" : "Friends"}
         </div>
         <ul className="divide-y divide-grey-100 dark:divide-grey-800">
-          {/* 검색 중엔 캐릭터만 (이름 검색) */}
-          {!q &&
-            friends.map((f) => (
-              <FriendListItem
-                key={f.address}
-                display_name={f.display_name}
-                intro={`@${f.username}`}
-                kind="user"
-                href={`/list/${f.address}`}
-              />
-            ))}
-          {characters.map((c) => (
+          {listItems.map((item) => (
             <FriendListItem
-              key={c.id}
-              display_name={c.display_name}
-              intro={c.intro}
-              imageUrl={c.imageUrl}
-              kind="character"
-              href={`/list/${c.id}`}
+              key={item.key}
+              display_name={item.display_name}
+              intro={item.intro}
+              imageUrl={item.imageUrl}
+              kind={item.kind}
+              href={item.href}
             />
           ))}
         </ul>
-        {q && characters.length === 0 ? (
+        {q && listItems.length === 0 ? (
           <p className="py-6 text-center text-sm text-grey-500 dark:text-grey-400">
-            No characters found.
+            No results found.
           </p>
         ) : null}
       </section>
